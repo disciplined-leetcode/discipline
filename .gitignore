@@ -1,0 +1,16 @@
+# TODO use gitcrpt
+prod.env
+user_files/*
+
+# miscellaneous
+*.idea
+
+*.lprof
+*.rdb
+
+# Python
+venv
+.ipynb_checkpoints/
+__pycache__
+env/
+*.egg-info
