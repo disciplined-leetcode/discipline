@@ -47,16 +47,17 @@ async def on_ready():
     submission_link='Your submission link',
 )
 async def submit(interaction: discord.Interaction, question_number: int, submission_link: str):
-    # TODO check with LC API or scrape it
+    # TODO check with LeetCode API or scrape it
     if not submission_link.startswith("https://leetcode.com/submissions/detail/"):
         await interaction.response.send_message(f'Submission link must look like '
                                                 f'\"https://leetcode.com/submissions/detail/808758751/\"')
+        return
 
     await interaction.response.send_message(f'{interaction.user.mention} good job on completing {question_number} '
                                             f'at {submission_link} !')
     # TODO use a proper database
     submission_db = open("user_files/submissions.csv", "a")  # append mode
-    submission_db.write(f"{datetime.utcnow()}, {question_number}, {submission_link}\n")
+    submission_db.write(f"{datetime.utcnow()}, {interaction.user.id}, {question_number}, {submission_link}\n")
     submission_db.close()
 
 
