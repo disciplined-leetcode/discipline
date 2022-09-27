@@ -52,11 +52,12 @@ async def submit(interaction: discord.Interaction, question_number: int, submiss
         await interaction.response.send_message(f'Submission link must look like '
                                                 f'\"https://leetcode.com/submissions/detail/808758751/\"')
 
-    await interaction.response.send_message(f'{interaction.user.mention} good job on completing {question_number}!')
+    await interaction.response.send_message(f'{interaction.user.mention} good job on completing {question_number} '
+                                            f'at {submission_link} !')
     # TODO use a proper database
-    file1 = open("user_files/submissions.csv", "a")  # append mode
-    file1.write(f"{datetime.utcnow()}, {question_number}, {submission_link}\n")
-    file1.close()
+    submission_db = open("user_files/submissions.csv", "a")  # append mode
+    submission_db.write(f"{datetime.utcnow()}, {question_number}, {submission_link}\n")
+    submission_db.close()
 
 
 # TODO consider moving it to a dedicate reporter bot or a third-party report bot
