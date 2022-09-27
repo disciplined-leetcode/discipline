@@ -13,6 +13,9 @@ If anyone makes a donation and they do not have the Active role
 
 Other potential ways of redemption. One example might be consecutively doing problems on time for 5 days.
 
+### notification bot
+We need a bot to send the question(s) of the day.
+
 ### (later) leaderboard bot
 Similar to streak Timecounter https://github.com/Study-Together-Org/time_counter
 
