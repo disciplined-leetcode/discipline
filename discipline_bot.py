@@ -2,16 +2,20 @@ import os
 
 import discord
 from discord import app_commands
-from datetime import datetime
+import datetime
 from dotenv import load_dotenv
+import pandas as pd
 
 load_dotenv("prod.env")
 # TODO extract configs to "prod_config.hjson"
-MY_GUILD = discord.Object(id=1023711157011353672)
+GUILD_ID = 1023711157011353672
+MY_GUILD = discord.Object(id=GUILD_ID)
 
 
 class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
+        intents = discord.Intents.default()
+        intents.members = True
         super().__init__(intents=intents)
         # A CommandTree is a special type that holds all the application command
         # state required to make it work. This is a separate class because it
@@ -51,18 +55,42 @@ async def submit(interaction: discord.Interaction, question_number: int, submiss
     if not submission_link.startswith("https://leetcode.com/submissions/detail/"):
         await interaction.response.send_message(f'Submission link must look like '
                                                 f'\"https://leetcode.com/submissions/detail/808758751/\"')
+        await interaction.user.send_message(f'Your input arguments are "{question_number}", "{submission_link}"')
         return
+
+    # TODO use a proper database
+    submission_db = open("user_files/submissions.csv", "a")  # append mode
+    submission_db.write(f"{datetime.datetime.utcnow()},{interaction.user.id},{question_number},{submission_link}\n")
+    submission_db.close()
 
     await interaction.response.send_message(f'{interaction.user.mention} good job on completing {question_number} '
                                             f'at {submission_link} !')
-    # TODO use a proper database
-    submission_db = open("user_files/submissions.csv", "a")  # append mode
-    submission_db.write(f"{datetime.utcnow()}, {interaction.user.id}, {question_number}, {submission_link}\n")
-    submission_db.close()
 
 
-# TODO consider moving it to a dedicate reporter bot or a third-party report bot
-# This context menu command only works on messages
+@client.tree.command()
+async def kick_inactive(interaction: discord.Interaction):
+    if interaction.channel_id != 1024837572171681882:
+        await interaction.response.send_message("Please invoke the command in the right channel.")
+        return
+
+    # TODO Filter by time and remove the Active role
+    df = pd.read_csv('./user_files/submissions.csv')
+
+    guild = client.get_guild(GUILD_ID)
+    members = {member for member in guild.members}
+    active_user_ids = set(df["user_id"].unique())
+    kicked = []
+
+    for member in members:
+        if member.id not in active_user_ids and not member.bot:
+            kicked.append(f"{member.name} ({member.id})")
+            await guild.kick(member, reason="You have not made any LeetCode submission in the server "
+                                            "in the last few days.\n"
+                                            "To rejoin, contact Zack#2664")
+
+    await interaction.response.send_message(f"Removed {len(kicked)} members.\n{', '.join(kicked)}")
+
+
 @client.tree.context_menu(name='Report to Moderators')
 async def report_message(interaction: discord.Interaction, message: discord.Message):
     # We're sending this response message with ephemeral=True, so only the command executor can see it
