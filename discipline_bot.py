@@ -52,10 +52,10 @@ async def on_ready():
 )
 async def submit(interaction: discord.Interaction, question_number: int, submission_link: str):
     # TODO check with LeetCode API or scrape it
-    if not submission_link.startswith("https://leetcode.com/submissions/detail/"):
+    if "submissions/" not in submission_link:
+        await interaction.user.send_message(f'Your input arguments are "{question_number}", "{submission_link}"')
         await interaction.response.send_message(f'Submission link must look like '
                                                 f'\"https://leetcode.com/submissions/detail/808758751/\"')
-        await interaction.user.send_message(f'Your input arguments are "{question_number}", "{submission_link}"')
         return
 
     # TODO use a proper database
