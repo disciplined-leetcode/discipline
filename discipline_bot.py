@@ -1,15 +1,26 @@
+import datetime
 import os
 
 import discord
-from discord import app_commands
-import datetime
-from dotenv import load_dotenv
+from discord.ext import tasks
 import pandas as pd
+import pymongo
+import pytz
+from discord import app_commands, Embed
+from dotenv import load_dotenv
+
+from leetmodel import leetmodel
 
 load_dotenv("prod.env")
 # TODO extract configs to "prod_config.hjson"
 GUILD_ID = 1023711157011353672
 MY_GUILD = discord.Object(id=GUILD_ID)
+model = leetmodel(os.getenv("LEETCODE_ACCOUNT_NAME"), os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
+
+client = pymongo.MongoClient(os.getenv("ATLAS_URI"))
+db = client.disciplined_leetcode_db
+submission_collection = db.disciplined_leetcode_collecion
+user_collection = db.user_collection
 
 
 class MyClient(discord.Client):
@@ -70,6 +81,83 @@ async def submit(interaction: discord.Interaction, question_number: int, submiss
 
 
 @client.tree.command()
+async def add_user(interaction: discord.Interaction, leetcode_username: str):
+    user_data = model.get_user_data(leetcode_username)
+
+    if not user_data:
+        await interaction.response.send_message(f'Could not add {leetcode_username}: Check the username!')
+        return
+
+    now = datetime.datetime.utcnow()
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")
+    total = user_data['submitStats']['acSubmissionNum'][0]['count']
+    easy = user_data['submitStats']['acSubmissionNum'][1]['count']
+    medium = user_data['submitStats']['acSubmissionNum'][2]['count']
+    hard = user_data['submitStats']['acSubmissionNum'][3]['count']
+    total_subs = user_data['submitStats']['acSubmissionNum'][0]['submissions']
+    myquery = {"leetcode_username": leetcode_username}
+    user_collection.replace_one(myquery, {"leetcode_username": leetcode_username, "ac_count_total": total,
+                                          "ac_count_easy": easy, "ac_count_medium": medium, "ac_count_hard": hard,
+                                          "ac_count_total_submissions": total_subs,
+                                          "updated_time": now_str
+                                          }, upsert=True)
+
+    await interaction.response.send_message(f'Added {leetcode_username}!')
+
+
+async def setup_hook(self) -> None:
+    # start the task to run in the background
+    self.get_feed.start()
+
+
+# Run checks every minute to find new submissions and upload them to the connected server
+@tasks.loop(minutes=1)
+async def get_feed(self):
+    print("loop")
+    max_recent = 20
+    submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
+    guild = client.get_guild(GUILD_ID)
+    submission_feed_channel = guild.get_channel(submission_feed_channel_id)
+
+    for document in user_collection.find({}, {"leetcode_username": 1, "ac_count_total_submissions": 1}):
+        new_submissions = []
+        prev_total = document["ac_count_total_submissions"]
+        leetcode_user = document["leetcode_username"]
+        user_data = model.get_user_data(leetcode_user)
+        current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
+
+        if current_total > prev_total:
+            recent_submissions = model.getRecentSubs(leetcode_user)
+            num_new_submissions = current_total - prev_total
+
+            for i in range(min(max_recent, num_new_submissions)):
+                if recent_submissions[i]['statusDisplay'] == "Accepted":
+                    new_submissions.append(
+                        [leetcode_user, recent_submissions[i]['title'], recent_submissions[i]['lang'],
+                         recent_submissions[i]['titleSlug'], recent_submissions[i]['statusDisplay']])
+
+        for submission in new_submissions:
+            desc = "User " + ''.join(submission[0]) + " has submitted an answer for [" + ''.join(submission[1]) \
+                   + "](https://leetcode.com/problems/" + ''.join(submission[3]) \
+                   + ") in " + ''.join(submission[2].capitalize()) + "."
+
+            now = datetime.datetime.utcnow()
+            current_time = now.strftime("%d-%m-%y %H:%M")
+            embed: Embed = discord.Embed(title="Accepted", description=desc, color=5025616)
+            embed.set_footer(text=current_time)
+
+            await submission_feed_channel.send(embed=embed)
+
+        # await interaction.response.send_message(f"Succeeded in sending {len(new_submissions)} new submission "
+        #                                         f"to <#{submission_feed_channel_id}>")
+
+
+@get_feed.before_loop
+async def before_my_task(self):
+    await self.wait_until_ready()  # wait until the bot logs in
+
+
+@client.tree.command()
 async def kick_inactive(interaction: discord.Interaction):
     if interaction.channel_id != 1024837572171681882:
         await interaction.response.send_message("Please invoke the command in the right channel.")
@@ -77,20 +165,30 @@ async def kick_inactive(interaction: discord.Interaction):
 
     # TODO Filter by time and remove the Active role
     df = pd.read_csv('./user_files/submissions.csv')
+    cutoff = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC) - datetime.timedelta(days=2)
 
     guild = client.get_guild(GUILD_ID)
-    members = {member for member in guild.members}
-    active_user_ids = set(df["user_id"].unique())
+    users_with_submissions = set(df["user_id"].unique())
     kicked = []
+    warned = []
 
-    for member in members:
-        if member.id not in active_user_ids and not member.bot:
-            kicked.append(f"{member.name} ({member.id})")
-            await guild.kick(member, reason="You have not made any LeetCode submission in the server "
-                                            "in the last few days.\n"
-                                            "To rejoin, contact Zack#2664")
+    for member in guild.members:
+        join_date_time = member.joined_at
 
-    await interaction.response.send_message(f"Removed {len(kicked)} members.\n{', '.join(kicked)}")
+        if join_date_time and join_date_time < cutoff and not member.bot:
+            goal = "regain access to member channels" if member.id in users_with_submissions else "rejoin the server"
+            # await member.dm_channel.send(f"You have not made any LeetCode submission in the server {guild.name}"
+            #                              "in the last few days.\n"
+            #                              f"To {goal}, contact Zack#2664")
+
+            if member.id in users_with_submissions:
+                warned.append(f"{member.name} ({member.id})")
+            else:
+                kicked.append(f"{member.name} ({member.id})")
+                # await guild.kick(member)
+
+    await interaction.response.send_message(f"Kicked {len(kicked)} members.\n{', '.join(kicked)} \n"
+                                            f"Warned {len(warned)} members.\n{', '.join(warned)}")
 
 
 @client.tree.context_menu(name='Report to Moderators')

@@ -7,6 +7,9 @@ name = "pypi"
 discord = "*"
 python-dotenv = "*"
 pandas = "*"
+pytz = "*"
+requests = "*"
+pymongo = {extras = ["srv"], version = "*"}
 
 [dev-packages]
 
