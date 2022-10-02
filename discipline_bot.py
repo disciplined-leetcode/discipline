@@ -12,8 +12,7 @@ from dotenv import load_dotenv
 from leetmodel import leetmodel
 
 load_dotenv("prod.env")
-# TODO extract configs to "prod_config.hjson"
-GUILD_ID = 1023711157011353672
+GUILD_ID = int(os.getenv("GUILD_ID"))
 MY_GUILD = discord.Object(id=GUILD_ID)
 model = leetmodel(os.getenv("LEETCODE_ACCOUNT_NAME"), os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
 
@@ -24,30 +23,60 @@ user_collection = db.user_collection
 
 
 class MyClient(discord.Client):
-    def __init__(self, *, intents: discord.Intents):
+    def __init__(self):
         intents = discord.Intents.default()
         intents.members = True
         super().__init__(intents=intents)
-        # A CommandTree is a special type that holds all the application command
-        # state required to make it work. This is a separate class because it
-        # allows all the extra state to be opt-in.
-        # Whenever you want to work with application commands, your tree is used
-        # to store and work with them.
-        # Note: When using commands.Bot instead of discord.Client, the bot will
-        # maintain its own tree instead.
         self.tree = app_commands.CommandTree(self)
 
-    # In this basic example, we just synchronize the app commands to one guild.
-    # Instead of specifying a guild to every command, we copy over our global commands instead.
-    # By doing so, we don't have to wait up to an hour until they are shown to the end-user.
     async def setup_hook(self):
-        # This copies the global commands over to your guild.
-        self.tree.copy_global_to(guild=MY_GUILD)
+        self.tree.copy_global_to(guild=MY_GUILD)  # This copies the global commands over to your guild.
         await self.tree.sync(guild=MY_GUILD)
+        self.get_feed.start()
+
+    @tasks.loop(minutes=1)
+    async def get_feed(self):
+        print("loop")
+        max_recent = 20
+        submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
+        guild = client.get_guild(GUILD_ID)
+        submission_feed_channel = guild.get_channel(submission_feed_channel_id)
+
+        for document in user_collection.find({}, {"leetcode_username": 1, "ac_count_total_submissions": 1}):
+            new_submissions = []
+            prev_total = document["ac_count_total_submissions"]
+            leetcode_user = document["leetcode_username"]
+            user_data = model.get_user_data(leetcode_user)
+            current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
+
+            if current_total > prev_total:
+                recent_submissions = model.getRecentSubs(leetcode_user)
+                num_new_submissions = current_total - prev_total
+
+                for i in range(min(max_recent, num_new_submissions)):
+                    if recent_submissions[i]['statusDisplay'] == "Accepted":
+                        new_submissions.append(
+                            [leetcode_user, recent_submissions[i]['title'], recent_submissions[i]['lang'],
+                             recent_submissions[i]['titleSlug'], recent_submissions[i]['statusDisplay']])
+
+            for submission in new_submissions:
+                desc = "User " + ''.join(submission[0]) + " has submitted an answer for [" + ''.join(submission[1]) \
+                       + "](https://leetcode.com/problems/" + ''.join(submission[3]) \
+                       + ") in " + ''.join(submission[2].capitalize()) + "."
+
+                now = datetime.datetime.utcnow()
+                current_time = now.strftime("%d-%m-%y %H:%M")
+                embed: Embed = discord.Embed(title="Accepted", description=desc, color=5025616)
+                embed.set_footer(text=current_time)
+
+                await submission_feed_channel.send(embed=embed)
+
+    @get_feed.before_loop
+    async def before_my_task(self):
+        await self.wait_until_ready()  # wait until the bot logs in
 
 
-intents = discord.Intents.default()
-client = MyClient(intents=intents)
+client = MyClient()
 
 
 @client.event
@@ -88,8 +117,14 @@ async def add_user(interaction: discord.Interaction, leetcode_username: str):
         await interaction.response.send_message(f'Could not add {leetcode_username}: Check the username!')
         return
 
+    update_user(user_data, leetcode_username)
+
+    await interaction.response.send_message(f'Added {leetcode_username}!')
+
+
+def update_user(user_data, leetcode_username):
     now = datetime.datetime.utcnow()
-    now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")  # TODO extract this format out
     total = user_data['submitStats']['acSubmissionNum'][0]['count']
     easy = user_data['submitStats']['acSubmissionNum'][1]['count']
     medium = user_data['submitStats']['acSubmissionNum'][2]['count']
@@ -102,64 +137,10 @@ async def add_user(interaction: discord.Interaction, leetcode_username: str):
                                           "updated_time": now_str
                                           }, upsert=True)
 
-    await interaction.response.send_message(f'Added {leetcode_username}!')
-
-
-async def setup_hook(self) -> None:
-    # start the task to run in the background
-    self.get_feed.start()
-
-
-# Run checks every minute to find new submissions and upload them to the connected server
-@tasks.loop(minutes=1)
-async def get_feed(self):
-    print("loop")
-    max_recent = 20
-    submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
-    guild = client.get_guild(GUILD_ID)
-    submission_feed_channel = guild.get_channel(submission_feed_channel_id)
-
-    for document in user_collection.find({}, {"leetcode_username": 1, "ac_count_total_submissions": 1}):
-        new_submissions = []
-        prev_total = document["ac_count_total_submissions"]
-        leetcode_user = document["leetcode_username"]
-        user_data = model.get_user_data(leetcode_user)
-        current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
-
-        if current_total > prev_total:
-            recent_submissions = model.getRecentSubs(leetcode_user)
-            num_new_submissions = current_total - prev_total
-
-            for i in range(min(max_recent, num_new_submissions)):
-                if recent_submissions[i]['statusDisplay'] == "Accepted":
-                    new_submissions.append(
-                        [leetcode_user, recent_submissions[i]['title'], recent_submissions[i]['lang'],
-                         recent_submissions[i]['titleSlug'], recent_submissions[i]['statusDisplay']])
-
-        for submission in new_submissions:
-            desc = "User " + ''.join(submission[0]) + " has submitted an answer for [" + ''.join(submission[1]) \
-                   + "](https://leetcode.com/problems/" + ''.join(submission[3]) \
-                   + ") in " + ''.join(submission[2].capitalize()) + "."
-
-            now = datetime.datetime.utcnow()
-            current_time = now.strftime("%d-%m-%y %H:%M")
-            embed: Embed = discord.Embed(title="Accepted", description=desc, color=5025616)
-            embed.set_footer(text=current_time)
-
-            await submission_feed_channel.send(embed=embed)
-
-        # await interaction.response.send_message(f"Succeeded in sending {len(new_submissions)} new submission "
-        #                                         f"to <#{submission_feed_channel_id}>")
-
-
-@get_feed.before_loop
-async def before_my_task(self):
-    await self.wait_until_ready()  # wait until the bot logs in
-
 
 @client.tree.command()
 async def kick_inactive(interaction: discord.Interaction):
-    if interaction.channel_id != 1024837572171681882:
+    if interaction.channel_id != os.getenv("MOD_CHANNEL"):
         await interaction.response.send_message("Please invoke the command in the right channel.")
         return
 
