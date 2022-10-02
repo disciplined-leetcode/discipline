@@ -11,14 +11,16 @@ from dotenv import load_dotenv
 
 from leetmodel import leetmodel
 
+max_recent = 20
 load_dotenv("prod.env")
 GUILD_ID = int(os.getenv("GUILD_ID"))
+submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
 MY_GUILD = discord.Object(id=GUILD_ID)
 model = leetmodel(os.getenv("LEETCODE_ACCOUNT_NAME"), os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
 
 client = pymongo.MongoClient(os.getenv("ATLAS_URI"))
 db = client.disciplined_leetcode_db
-submission_collection = db.disciplined_leetcode_collecion
+submission_collection = db.submission_collecion
 user_collection = db.user_collection
 
 
@@ -36,27 +38,25 @@ class MyClient(discord.Client):
 
     @tasks.loop(minutes=1)
     async def get_feed(self):
-        print("loop")
-        max_recent = 20
-        submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
         guild = client.get_guild(GUILD_ID)
         submission_feed_channel = guild.get_channel(submission_feed_channel_id)
 
-        for document in user_collection.find({}, {"leetcode_username": 1, "ac_count_total_submissions": 1}):
-            new_submissions = []
-            prev_total = document["ac_count_total_submissions"]
-            leetcode_user = document["leetcode_username"]
-            user_data = model.get_user_data(leetcode_user)
+        for document in user_collection.find({}, {"discord_id": 1, "leetcode_username": 1, "ac_count_total_submissions": 1}):
+            leetcode_username = document["leetcode_username"]
+            user_data = model.get_user_data(leetcode_username)
             current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
+            prev_total = document["ac_count_total_submissions"]
+            num_new_submissions = current_total - prev_total
+            new_submissions = []
 
-            if current_total > prev_total:
-                recent_submissions = model.getRecentSubs(leetcode_user)
-                num_new_submissions = current_total - prev_total
+            if num_new_submissions:
+                update_user(document["discord_id"], user_data, leetcode_username)
+                recent_submissions = model.getRecentSubs(leetcode_username)
 
                 for i in range(min(max_recent, num_new_submissions)):
                     if recent_submissions[i]['statusDisplay'] == "Accepted":
                         new_submissions.append(
-                            [leetcode_user, recent_submissions[i]['title'], recent_submissions[i]['lang'],
+                            [leetcode_username, recent_submissions[i]['title'], recent_submissions[i]['lang'],
                              recent_submissions[i]['titleSlug'], recent_submissions[i]['statusDisplay']])
 
             for submission in new_submissions:
@@ -100,10 +100,12 @@ async def submit(interaction: discord.Interaction, question_number: int, submiss
                                                 f'Your input arguments are "{question_number}", "{submission_link}"')
         return
 
-    # TODO use a proper database
-    submission_db = open("user_files/submissions.csv", "a")  # append mode
-    submission_db.write(f"{datetime.datetime.utcnow()},{interaction.user.id},{question_number},{submission_link}\n")
-    submission_db.close()
+    submission_collection.insert_one({
+        "time":  datetime.datetime.utcnow(),
+        "discord_id": interaction.user.id,
+        "question_number": question_number,
+        "submission_link": submission_link
+    })
 
     await interaction.response.send_message(f'{interaction.user.mention} good job on completing {question_number} '
                                             f'at {submission_link} !')
@@ -117,12 +119,12 @@ async def add_user(interaction: discord.Interaction, leetcode_username: str):
         await interaction.response.send_message(f'Could not add {leetcode_username}: Check the username!')
         return
 
-    update_user(user_data, leetcode_username)
+    update_user(interaction.user.id, user_data, leetcode_username)
 
     await interaction.response.send_message(f'Added {leetcode_username}!')
 
 
-def update_user(user_data, leetcode_username):
+def update_user(discord_id, user_data, leetcode_username):
     now = datetime.datetime.utcnow()
     now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")  # TODO extract this format out
     total = user_data['submitStats']['acSubmissionNum'][0]['count']
@@ -131,11 +133,17 @@ def update_user(user_data, leetcode_username):
     hard = user_data['submitStats']['acSubmissionNum'][3]['count']
     total_subs = user_data['submitStats']['acSubmissionNum'][0]['submissions']
     myquery = {"leetcode_username": leetcode_username}
-    user_collection.replace_one(myquery, {"leetcode_username": leetcode_username, "ac_count_total": total,
-                                          "ac_count_easy": easy, "ac_count_medium": medium, "ac_count_hard": hard,
-                                          "ac_count_total_submissions": total_subs,
-                                          "updated_time": now_str
-                                          }, upsert=True)
+    user_collection.replace_one(myquery,
+                                {
+                                    "discord_id": discord_id,
+                                    "leetcode_username": leetcode_username,
+                                    "ac_count_total": total,
+                                    "ac_count_easy": easy,
+                                    "ac_count_medium": medium, "ac_count_hard": hard,
+                                    "ac_count_total_submissions": total_subs,
+                                    "updated_time": now_str
+                                }
+                                , upsert=True)
 
 
 @client.tree.command()
