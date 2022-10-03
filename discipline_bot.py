@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from leetmodel import leetmodel
 
 load_dotenv("prod.env")
+# TODO figure out why overwriting doesn't work
+load_dotenv("dev.env")
 max_recent = 20
 GUILD_ID = int(os.getenv("GUILD_ID"))
 submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
@@ -41,7 +43,7 @@ class MyClient(discord.Client):
         await self.tree.sync(guild=MY_GUILD)
         self.get_feed.start()
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(seconds=int(os.getenv("REFRESH_INTERVAL_SECONDS")))
     async def get_feed(self):
         guild = client.get_guild(GUILD_ID)
         submission_feed_channel = guild.get_channel(submission_feed_channel_id)
@@ -68,17 +70,23 @@ class MyClient(discord.Client):
                 if submission["statusDisplay"] != "Accepted":
                     continue
 
+                submission_id = submission['id']
+                submission_details = model.get_submission_details(leetcode_username, int(submission_id))
                 timestamp = datetime.datetime.fromtimestamp(int(submission["timestamp"]))
-                submission["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
-                submission["leetcode_username"] = leetcode_username
-                submission["discord_user_id"] = discord_user_id
-                submission.update(title_slug_to_data[submission["titleSlug"]])
-                submission_feed_collection.insert_one(submission)
-
-                desc = f"{discord_user.display_name} solved " \
-                       f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) " \
-                       f"in {submission['lang'].capitalize()}.\n" \
-                       f"Congrats! Click on the link to learn from their submission.n"
+                submission_details["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
+                submission_details["leetcode_username"] = leetcode_username
+                submission_details["discord_user_id"] = discord_user_id
+                submission_details.update(title_slug_to_data[submission["titleSlug"]])
+                submission_feed_collection.insert_one(submission_details)
+                lang = submission_details['lang']['verboseName']
+                desc = f"Congrats! {discord_user.display_name} solved " \
+                       f"[{submission_details['title']}](https://leetcode.com/submissions/detail/{submission_id}/)" \
+                       f"in {lang}.\n" \
+                       f"It beat {submission_details['memoryPercentile']} by memory, " \
+                       f"and {submission_details['runtimePercentile']} by runtime.\n" \
+                       f"```{lang}" \
+                       f"{submission_details['code']}" \
+                       f"```"
                 embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
                                              color=5025616)
                 embed.set_footer(text=f"{discord_user.display_name}", icon_url=discord_user.avatar.url)

@@ -43,6 +43,7 @@ class leetmodel:
     """
     Get up to 20 recent submissions
     """
+
     def get_recent_submissions(self, user):
         op = {"operationName": "getRecentSubmissionList",
               "variables": json.dumps({"username": user}),
@@ -52,10 +53,26 @@ class leetmodel:
                        "verboseName\n    __typename\n  }\n}\n"}
 
         hd = self.get_headers(self.api["profile"](user))
-
         s = self.session.post(self.api["graphql"], headers=hd, data=op)
 
         return json.loads(s.content)["data"]["recentSubmissionList"]
+
+    def get_submission_details(self, user, submission_id):
+        op = {"operationName": "submissionDetails",
+              "variables": json.dumps({"submissionId": submission_id}),
+              "query": "query submissionDetails($submissionId: Int!) {\n  submissionDetails(submissionId: "
+                       "$submissionId) {\n    runtime\n    runtimeDisplay\n    runtimePercentile\n    "
+                       "runtimeDistribution\n    memory\n    memoryDisplay\n    memoryPercentile\n    "
+                       "memoryDistribution\n    code\n    timestamp\n    statusCode\n    user {\n      username\n     "
+                       " profile {\n        realName\n        userAvatar\n      }\n    }\n    lang {\n      name\n    "
+                       "  verboseName\n    }\n    question {\n      questionId\n    }\n    notes\n    topicTags {\n   "
+                       "   tagId\n      slug\n      name\n    }\n    runtimeError\n    compileError\n    "
+                       "lastTestcase\n  }\n}\n "
+              }
+        hd = self.get_headers(self.api["profile"](user))
+        s = self.session.post(self.api["graphql"], headers=hd, data=op)
+
+        return json.loads(s.content)["data"]["submissionDetails"]
 
     def get_user_data(self, user):
         request = requests.get('http://leetcode.com/' + user + '/')
@@ -78,7 +95,6 @@ class leetmodel:
                        "__typename\n  }\n}\n"}
 
         hd = self.get_headers(self.api["profile"](user))
-
         s = self.session.post(self.api["graphql"], headers=hd, data=op)
 
         return json.loads(s.content)["data"]["matchedUser"]
