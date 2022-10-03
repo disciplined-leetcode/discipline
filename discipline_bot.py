@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from leetmodel import leetmodel
 
 load_dotenv("prod.env")
-max_recent=20
+max_recent = 20
 GUILD_ID = int(os.getenv("GUILD_ID"))
 submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
 MY_GUILD = discord.Object(id=GUILD_ID)
@@ -67,6 +67,7 @@ class MyClient(discord.Client):
 
                 if submission["statusDisplay"] != "Accepted":
                     continue
+
                 timestamp = datetime.datetime.fromtimestamp(int(submission["timestamp"]))
                 submission["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
                 submission["leetcode_username"] = leetcode_username
@@ -75,9 +76,9 @@ class MyClient(discord.Client):
                 submission_feed_collection.insert_one(submission)
 
                 desc = f"{discord_user.display_name} solved " \
-                       f"[{submission['title']}](https://leetcode.com/problems/{submission['statusDisplay']}) " \
-                       f"in {submission['lang'].capitalize()}." \
-                       f"Congrats! Click on the link to learn from their submission.\n"
+                       f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) " \
+                       f"in {submission['lang'].capitalize()}.\n" \
+                       f"Congrats! Click on the link to learn from their submission.n"
                 embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
                                              color=5025616)
                 embed.set_footer(text=f"{discord_user.display_name}", icon_url=discord_user.avatar.url)

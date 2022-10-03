@@ -47,7 +47,7 @@ class leetmodel:
         op = {"operationName": "getRecentSubmissionList",
               "variables": json.dumps({"username": user}),
               "query": "query getRecentSubmissionList($username: String!, $limit: Int) {\n  recentSubmissionList("
-                       "username: $username, limit: $limit) {\n    title\n    titleSlug\n    timestamp\n    "
+                       "username: $username, limit: $limit) {\n    id\n    title\n    titleSlug\n    timestamp\n    "
                        "statusDisplay\n    lang\n    __typename\n  }\n  languageList {\n    id\n    name\n    "
                        "verboseName\n    __typename\n  }\n}\n"}
 
