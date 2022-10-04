@@ -60,6 +60,7 @@ class leetmodel:
     def get_user_data(self, user):
         request = requests.get('http://leetcode.com/' + user + '/')
         if request.status_code != 200:
+            print(user, request)
             return None
 
         op = {"operationName": "getUserProfile", "variables": json.dumps({"username": user}),
