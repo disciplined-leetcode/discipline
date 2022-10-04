@@ -2,6 +2,8 @@ import datetime
 import os
 import sys
 
+import collections
+
 import discord
 from discord.ext import tasks
 import pandas as pd
@@ -11,8 +13,12 @@ from discord import app_commands, Embed
 from dotenv import load_dotenv
 
 from leetmodel import leetmodel
+from leet_simulator import LeetCodeSimulator
+from util import printException
 
-load_dotenv("prod.env")
+DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
+load_dotenv(f"{DISCIPLINE_MODE}.env")
+
 max_recent = 20
 GUILD_ID = int(os.getenv("GUILD_ID"))
 submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
@@ -36,6 +42,10 @@ class MyClient(discord.Client):
         intents.members = True
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
+        self.submission_fetcher = LeetCodeSimulator(
+            os.getenv("LEETCODE_ACCOUNT_NAME"),
+            os.getenv("LEETCODE_ACCOUNT_PASSWORD")
+        )
 
     async def setup_hook(self):
         self.tree.copy_global_to(guild=MY_GUILD)  # This copies the global commands over to your guild.
@@ -77,10 +87,20 @@ class MyClient(discord.Client):
                     submission.update(title_slug_to_data[submission["titleSlug"]])
                     submission_feed_collection.insert_one(submission)
 
-                    desc = f"{discord_user.display_name} solved " \
-                           f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) " \
-                           f"in {submission['lang'].capitalize()}.\n" \
-                           f"Congrats! Click on the link to learn from their submission."
+                    submission_detail = collections.defaultdict(lambda: '')
+
+                    try:
+                        submission_detail = self.submission_fetcher.get_submission_details(submission['id'])
+                    except Exception as e:
+                        printException(e)
+
+                    desc = f"Congrats! {discord_user.display_name} solved " \
+                       f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) " \
+                       f"in {submission_detail['lang']}.\n" \
+                       f"It beat {submission_detail['memory']}% by memory, " \
+                       f"and {submission_detail['runtime']}% by runtime.\n" \
+                       f"{submission_detail['code']}"
+
                     embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
                                                  color=5025616)
 
@@ -89,9 +109,8 @@ class MyClient(discord.Client):
 
                     await submission_feed_channel.send(embed=embed)
             except Exception as e:
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                print(exc_type, fname, exc_tb.tb_lineno)
+                print(user_data)
+                printException(e)
 
     @get_feed.before_loop
     async def before_my_task(self):
