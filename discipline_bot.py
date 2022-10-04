@@ -1,5 +1,6 @@
 import datetime
 import os
+import sys
 
 import discord
 from discord.ext import tasks
@@ -48,42 +49,49 @@ class MyClient(discord.Client):
 
         for document in user_collection.find({}, {"discord_user_id": 1, "leetcode_username": 1,
                                                   "ac_count_total_submissions": 1}):
-            leetcode_username = document["leetcode_username"]
-            discord_user_id = document["discord_user_id"]
-            discord_user = await client.fetch_user(discord_user_id)
-            user_data = model.get_user_data(leetcode_username)
-            current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
-            prev_total = document["ac_count_total_submissions"]
-            num_new_submissions = current_total - prev_total
+            try:
+                leetcode_username = document["leetcode_username"]
+                discord_user_id = document["discord_user_id"]
+                discord_user = await client.fetch_user(discord_user_id)
+                user_data = model.get_user_data(leetcode_username)
+                current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
+                prev_total = document["ac_count_total_submissions"]
+                num_new_submissions = current_total - prev_total
 
-            if not num_new_submissions:
-                continue
-
-            update_user(discord_user_id, user_data, leetcode_username)
-            recent_submissions = model.get_recent_submissions(leetcode_username)
-
-            for i in range(min(max_recent, num_new_submissions)):
-                submission = recent_submissions[i]
-
-                if submission["statusDisplay"] != "Accepted":
+                if not num_new_submissions:
                     continue
 
-                timestamp = datetime.datetime.fromtimestamp(int(submission["timestamp"]))
-                submission["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
-                submission["leetcode_username"] = leetcode_username
-                submission["discord_user_id"] = discord_user_id
-                submission.update(title_slug_to_data[submission["titleSlug"]])
-                submission_feed_collection.insert_one(submission)
+                update_user(discord_user_id, user_data, leetcode_username)
+                recent_submissions = model.get_recent_submissions(leetcode_username)
 
-                desc = f"{discord_user.display_name} solved " \
-                       f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) " \
-                       f"in {submission['lang'].capitalize()}.\n" \
-                       f"Congrats! Click on the link to learn from their submission.n"
-                embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
-                                             color=5025616)
-                embed.set_footer(text=f"{discord_user.display_name}", icon_url=discord_user.avatar.url)
+                for i in range(min(max_recent, num_new_submissions)):
+                    submission = recent_submissions[i]
 
-                await submission_feed_channel.send(embed=embed)
+                    if submission["statusDisplay"] != "Accepted":
+                        continue
+
+                    timestamp = datetime.datetime.fromtimestamp(int(submission["timestamp"]))
+                    submission["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
+                    submission["leetcode_username"] = leetcode_username
+                    submission["discord_user_id"] = discord_user_id
+                    submission.update(title_slug_to_data[submission["titleSlug"]])
+                    submission_feed_collection.insert_one(submission)
+
+                    desc = f"{discord_user.display_name} solved " \
+                           f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) " \
+                           f"in {submission['lang'].capitalize()}.\n" \
+                           f"Congrats! Click on the link to learn from their submission."
+                    embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
+                                                 color=5025616)
+
+                    icon_url = discord_user.avatar.url if discord_user.avatar else None
+                    embed.set_footer(text=f"{discord_user.display_name}", icon_url=icon_url)
+
+                    await submission_feed_channel.send(embed=embed)
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type, fname, exc_tb.tb_lineno)
 
     @get_feed.before_loop
     async def before_my_task(self):

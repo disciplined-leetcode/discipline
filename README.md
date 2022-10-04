@@ -1,3 +1,15 @@
+# Installation
+`pipenv install`
+
+# Run
+```Bash
+pipenv shell
+# For local run
+python discipline_bot.py
+# For remote run
+nohup python discipline_bot.py > console.log 2>&1 &
+```
+
 # discipline
 [Join the Discord server](https://discord.gg/m5tS4dgg)
 
