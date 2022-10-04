@@ -1,19 +1,14 @@
-from dataclasses import dataclass
+import os
+import re
 
-from webdriver_manager.chrome import ChromeDriverManager
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-
-from selenium.webdriver.support.wait import WebDriverWait
-
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
-# local is a dict with 3 keys: username, password, driver_path
-from dotenv import load_dotenv
+from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
 
-import os
-
-DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE')
+DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 
 load_dotenv(f"{DISCIPLINE_MODE}.env")
 
@@ -24,10 +19,10 @@ class LeetCodeSimulator:
         self.login_status = False
         options = webdriver.ChromeOptions()
         options.add_argument('headless')
-        if DISCIPLINE_MODE == 'dev':
-            self.driver = webdriver.Chrome(os.getenv('DRIVER_PATH'), options=options)
+        if DISCIPLINE_MODE == 'prod':
+            self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         else:
-            self.driver = webdriver.Chrome(Service(ChromeDriverManager().install()), options=options)
+            self.driver = webdriver.Chrome(os.getenv('DRIVER_PATH'), options=options)
 
     def login(self):
         self.driver.get('https://leetcode.com/accounts/login/')
@@ -52,20 +47,25 @@ class LeetCodeSimulator:
 
         self.driver.get(f'https://leetcode.com/submissions/detail/{submission_id}/')
 
-        # TODO: elegant way to wait code tag to load
-        while not (codeblock := self.driver.find_element(By.TAG_NAME, 'code')):
-            self.driver.implicitly_wait(1)
+        source_code = self.driver.page_source
 
-        lang = codeblock.get_attribute('class').removeprefix('language-')
-        code = codeblock.text
-        return f"```" + lang + '\n' + code + '\n' + "```"
+        # use regex to find runtime percentage like in "Your runtime beats 100.00 % of python3 submissions."
+        # use regex to find memory percentage like in "Your memory usage beats 100.00 % of python3 submissions."
+        runtime_percentage = re.search(r'runtime beats\n              (\d+.\d+)', source_code).group(1)
+        memory_percentage = re.search(r'memory usage beats\n              (\d+.\d+)', source_code).group(1)
+        lang = self.driver.find_element(By.CLASS_NAME, 'legendLabel').text.removesuffix('3')
+        code = self.driver.find_element(By.CLASS_NAME, 'ace_text-layer').text
 
+        return {
+            'runtime': runtime_percentage,
+            'memory': memory_percentage,
+            'lang': lang,
+            'code': f"```" + lang + '\n' + code + '\n' + "```"
+        }
 
-# import asyncio
 
 if __name__ == '__main__':
     leet = LeetCodeSimulator(os.getenv("LEETCODE_ACCOUNT_NAME"),
-        os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
+                             os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
     # leet should be stored to reuse the session
-    code = leet.get_submission_details(811812564)
-    print(code)
+    print(leet.get_submission_details(811812564))
