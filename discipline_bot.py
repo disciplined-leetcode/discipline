@@ -1,20 +1,19 @@
+import collections
 import datetime
 import os
-import sys
-
-import collections
+from time import sleep
 
 import discord
-from discord.ext import tasks
 import pandas as pd
 import pymongo
 import pytz
 from discord import app_commands, Embed
+from discord.ext import tasks
 from dotenv import load_dotenv
 
+from leet_simulator import get_submission_details
 from leetmodel import leetmodel
 from util import printException
-from leet_simulator import get_submission_details
 
 DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
@@ -82,7 +81,6 @@ class MyClient(discord.Client):
                     submission["discord_user_id"] = discord_user_id
                     submission.update(title_slug_to_data[submission["titleSlug"]])
                     submission_feed_collection.insert_one(submission)
-
                     submission_detail = collections.defaultdict(lambda: '')
 
                     try:
@@ -111,6 +109,9 @@ class MyClient(discord.Client):
             except Exception as e:
                 print(user_data)
                 printException(e)
+            finally:
+                # Avoid 429 error code
+                sleep(10)
 
     @get_feed.before_loop
     async def before_my_task(self):
