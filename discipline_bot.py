@@ -13,8 +13,8 @@ from discord import app_commands, Embed
 from dotenv import load_dotenv
 
 from leetmodel import leetmodel
-from leet_simulator import LeetCodeSimulator
 from util import printException
+from leet_simulator import get_submission_details
 
 DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
@@ -42,10 +42,6 @@ class MyClient(discord.Client):
         intents.members = True
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
-        self.submission_fetcher = LeetCodeSimulator(
-            os.getenv("LEETCODE_ACCOUNT_NAME"),
-            os.getenv("LEETCODE_ACCOUNT_PASSWORD")
-        )
 
     async def setup_hook(self):
         self.tree.copy_global_to(guild=MY_GUILD)  # This copies the global commands over to your guild.
@@ -90,16 +86,20 @@ class MyClient(discord.Client):
                     submission_detail = collections.defaultdict(lambda: '')
 
                     try:
-                        submission_detail = self.submission_fetcher.get_submission_details(submission['id'])
+                        submission_detail = get_submission_details(submission['id'])
                     except Exception as e:
                         printException(e)
 
                     desc = f"Congrats! {discord_user.display_name} solved " \
-                       f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) " \
-                       f"in {submission_detail['lang']}.\n" \
-                       f"It beat {submission_detail['memory']}% by memory, " \
-                       f"and {submission_detail['runtime']}% by runtime.\n" \
-                       f"{submission_detail['code']}"
+                           f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) "
+
+                    if submission_detail['runtime']:
+                        desc += f"in {submission_detail['lang']}.\n" \
+                                f"It beat {submission_detail['memory']}% by memory, " \
+                                f"and {submission_detail['runtime']}% by runtime.\n" \
+                                f"```{submission_detail['lang'].removesuffix('3')}\n" \
+                                f"{submission_detail['code']}" \
+                                f"```"
 
                     embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
                                                  color=5025616)

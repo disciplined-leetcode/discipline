@@ -1,74 +1,51 @@
 import os
-import re
+import requests
+import json
+from private import cookies
 
-from dotenv import load_dotenv
-from selenium import webdriver
-# from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-# from webdriver_manager.firefox import FirefoxDriverManager
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-import pathlib
+__all__ = ['get_submission_details']
+
+headers = {
+    'authority': 'leetcode.com',
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,'
+              'application/signed-exchange;v=b3;q=0.9',
+    'accept-language': 'zh-CN,zh;q=0.9',
+    'cache-control': 'no-cache',
+    'dnt': '1',
+    'pragma': 'no-cache',
+    'sec-ch-ua': '"Chromium";v="106", "Google Chrome";v="106", "Not;A=Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"macOS"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+    'upgrade-insecure-requests': '1',
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) '
+                  'Chrome/106.0.0.0 Safari/537.36',
+}
 
 
-DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
+json_data = {"operationName": "submissionDetails",
+             "query": "query submissionDetails($submissionId: Int!) {\n  submissionDetails(submissionId: "
+                      "$submissionId) {\n    runtimePercentile\n    memoryPercentile\n    "
+                      "code\n    lang {\n      name    }}\n}\n "
+             }
 
-load_dotenv(f"{DISCIPLINE_MODE}.env")
 
-class LeetCodeSimulator:
-    def __init__(self, username, password):
-        self.username = username
-        self.password = password
-        self.login_status = False
-        options = FirefoxOptions()
-        options.add_argument('headless')
-        if DISCIPLINE_MODE == 'prod':
-            self.driver = webdriver.Firefox(executable_path=os.path.join(pathlib.Path().resolve(), 'geckdriver'), options=options)
-        else:
-            self.driver = webdriver.Chrome(executable_path=os.getenv('DRIVER_PATH'), options=options)
-
-    def login(self):
-        self.driver.get('https://leetcode.com/accounts/login/')
-
-        while not self.driver.find_element(By.ID, 'id_login'):
-            self.driver.implicitly_wait(1)
-
-        self.driver.find_element(By.ID, 'id_login').send_keys(self.username)
-        self.driver.find_element(By.ID, 'id_password').send_keys(self.password)
-        self.driver.find_element(By.ID, 'id_password').send_keys(Keys.ENTER)
-
-        self.login_status = True
-
-    def get_submission_details(self, submission_id):
-        if not self.login_status:
-            self.login()
-
-            # TODO: elegant way to wait for page to redirect
-            # wait until url is leetcode.com
-            while self.driver.current_url != 'https://leetcode.com/':
-                self.driver.implicitly_wait(1)
-
-        self.driver.get(f'https://leetcode.com/submissions/detail/{submission_id}/')
-
-        source_code = self.driver.page_source
-
-        # use regex to find runtime percentage like in "Your runtime beats 100.00 % of python3 submissions."
-        # use regex to find memory percentage like in "Your memory usage beats 100.00 % of python3 submissions."
-        runtime_percentage = re.search(r'runtime beats\n              (\d+.\d+)', source_code).group(1)
-        memory_percentage = re.search(r'memory usage beats\n              (\d+.\d+)', source_code).group(1)
-        lang = self.driver.find_element(By.CLASS_NAME, 'legendLabel').text.removesuffix('3')
-        code = self.driver.find_element(By.CLASS_NAME, 'ace_text-layer').text
-
-        return {
-            'runtime': runtime_percentage,
-            'memory': memory_percentage,
-            'lang': lang,
-            'code': f"```" + lang + '\n' + code + '\n' + "```"
-        }
+def get_submission_details(submission_id):
+    json_data['variables'] = json.dumps({"submissionId": submission_id})
+    res = requests.post('https://leetcode.com/graphql', cookies=cookies, headers=headers, json=json_data).json()
+    lang = res['data']['submissionDetails']['lang']['name']
+    code = res['data']['submissionDetails']['code'].removesuffix('\n')
+    return {
+        'lang': lang,
+        'code': code,
+        # 'code': f"```" + lang.removesuffix('3') + '\n' + code + '\n' + "```"
+        'runtime': f"{(res['data']['submissionDetails']['runtimePercentile']):.2f}%",
+        'memory': f"{(res['data']['submissionDetails']['memoryPercentile']):.2f}%",
+    }
 
 
 if __name__ == '__main__':
-    leet = LeetCodeSimulator(os.getenv("LEETCODE_ACCOUNT_NAME"),
-                             os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
-    # leet should be stored to reuse the session
-    print(leet.get_submission_details(811812564))
+    print(get_submission_details(815504963))
