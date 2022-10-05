@@ -10,7 +10,6 @@ pandas = "*"
 pytz = "*"
 requests = "*"
 pymongo = {extras = ["srv"], version = "*"}
-webdriver-manager = "*"
 selenium = "*"
 
 [dev-packages]
