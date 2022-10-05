@@ -17,7 +17,7 @@ from util import printException
 
 DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
-
+SLEEP_INTERVAL_SECONDS = int(os.getenv("SLEEP_INTERVAL_SECONDS"))
 max_recent = 20
 GUILD_ID = int(os.getenv("GUILD_ID"))
 submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
@@ -47,7 +47,7 @@ class MyClient(discord.Client):
         await self.tree.sync(guild=MY_GUILD)
         self.get_feed.start()
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(seconds=int(os.getenv("REFRESH_INTERVAL_SECONDS")))
     async def get_feed(self):
         guild = client.get_guild(GUILD_ID)
         submission_feed_channel = guild.get_channel(submission_feed_channel_id)
@@ -59,6 +59,7 @@ class MyClient(discord.Client):
                 discord_user_id = document["discord_user_id"]
                 discord_user = await client.fetch_user(discord_user_id)
                 user_data = model.get_user_data(leetcode_username)
+                sleep(SLEEP_INTERVAL_SECONDS)
                 current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
                 prev_total = document["ac_count_total_submissions"]
                 num_new_submissions = current_total - prev_total
@@ -68,6 +69,7 @@ class MyClient(discord.Client):
 
                 update_user(discord_user_id, user_data, leetcode_username)
                 recent_submissions = model.get_recent_submissions(leetcode_username)
+                sleep(SLEEP_INTERVAL_SECONDS)
 
                 for i in range(min(max_recent, num_new_submissions)):
                     submission = recent_submissions[i]
@@ -85,6 +87,7 @@ class MyClient(discord.Client):
 
                     try:
                         submission_detail = get_submission_details(submission['id'])
+                        sleep(SLEEP_INTERVAL_SECONDS)
                     except Exception as e:
                         printException(e)
 
@@ -110,9 +113,6 @@ class MyClient(discord.Client):
             except Exception as e:
                 print(document)
                 printException(e)
-            finally:
-                # Avoid 429 error code
-                sleep(10)
 
     @get_feed.before_loop
     async def before_my_task(self):

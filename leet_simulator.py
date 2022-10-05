@@ -1,6 +1,7 @@
-import os
-import requests
 import json
+
+import requests
+
 from private import cookies
 
 __all__ = ['get_submission_details']
@@ -41,7 +42,6 @@ def get_submission_details(submission_id):
     return {
         'lang': lang,
         'code': code,
-        # 'code': f"```" + lang.removesuffix('3') + '\n' + code + '\n' + "```"
         'runtime': f"{(res['data']['submissionDetails']['runtimePercentile']):.2f}%",
         'memory': f"{(res['data']['submissionDetails']['memoryPercentile']):.2f}%",
     }
