@@ -93,8 +93,9 @@ class MyClient(discord.Client):
 
                     if submission_detail['runtime']:
                         desc += f"in {submission_detail['lang']}.\n" \
-                                f"It beat {submission_detail['memory']}% by memory, " \
-                                f"and {submission_detail['runtime']}% by runtime.\n" \
+                                f"It beat by\n" \
+                                f"**runtime {submission_detail['runtime']}**, and by\n" \
+                                f"**memory {submission_detail['memory']}**.\n" \
                                 f"```{submission_detail['lang'].removesuffix('3')}\n" \
                                 f"{submission_detail['code']}" \
                                 f"```"
@@ -107,7 +108,7 @@ class MyClient(discord.Client):
 
                     await submission_feed_channel.send(embed=embed)
             except Exception as e:
-                print(user_data)
+                print(document)
                 printException(e)
             finally:
                 # Avoid 429 error code
