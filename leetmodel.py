@@ -43,6 +43,7 @@ class leetmodel:
     """
     Get up to 20 recent submissions
     """
+
     def get_recent_submissions(self, user):
         op = {"operationName": "getRecentSubmissionList",
               "variables": json.dumps({"username": user}),
@@ -56,6 +57,19 @@ class leetmodel:
         s = self.session.post(self.api["graphql"], headers=hd, data=op)
 
         return json.loads(s.content)["data"]["recentSubmissionList"]
+
+    def get_question_of_the_day(self):
+        op = {
+              "query": "{\n  activeDailyCodingChallengeQuestion {\n    date\n    "
+                       "link\n    question {\n      acRate\n      difficulty\n      freqBar\n      "
+                       "frontendQuestionId: questionFrontendId\n      isFavor\n      paidOnly: isPaidOnly\n      "
+                       "status\n      title\n      titleSlug\n      hasVideoSolution\n      hasSolution\n      "
+                       "}\n  }\n}\n"}
+
+        hd = self.get_headers()
+        s = self.session.post(self.api["graphql"], headers=hd, data=op)
+
+        return json.loads(s.content)["data"]['activeDailyCodingChallengeQuestion']
 
     def get_user_data(self, user):
         request = requests.get('http://leetcode.com/' + user + '/')

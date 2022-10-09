@@ -1,3 +1,4 @@
+import asyncio
 import collections
 import datetime
 import os
@@ -41,6 +42,7 @@ class MyClient(discord.Client):
         intents.members = True
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
+        send_question_of_the_day()
 
     async def setup_hook(self):
         self.tree.copy_global_to(guild=MY_GUILD)  # This copies the global commands over to your guild.
@@ -128,24 +130,61 @@ async def on_ready():
     print("------")
 
 
+def seconds_until(hours, minutes):
+    given_time = datetime.time(hours, minutes)
+    now = datetime.datetime.now()
+    future_exec = datetime.datetime.combine(now, given_time)
+    if (future_exec - now).days < 0:  # If we are past the execution, it will take place tomorrow
+        future_exec = datetime.datetime.combine(now + datetime.timedelta(days=1), given_time) # days always >= 0
+
+    return (future_exec - now).total_seconds()
+
+
+async def send_question_of_the_day():
+    while True:  # Or change to self.is_running or some variable to control the task
+        await asyncio.sleep(seconds_until(0, 1))
+        question_of_the_day = model.get_question_of_the_day()
+        guild = client.get_guild(GUILD_ID)
+        submission_feed_channel = guild.get_channel(submission_feed_channel_id)
+
+        day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + datetime.timedelta(hours=24)
+        timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
+
+        embed = discord.Embed(title=f"Question of the Day - {question_of_the_day['date']}")
+        embed.description = f"@everyone Friendly reminder 🎗" \
+                            f"You must complete one of them by the end of 10/9 UTC⏱️. " \
+                            f"(Likely <t:{timestamp}:f> your time)\n" \
+                            f"The **senior** track question is {question_of_the_day['question']['frontendQuestionId']} " \
+                            f"{question_of_the_day['question']['title']}: " \
+                            f"{question_of_the_day['link']}\n" \
+                            f"The **junior** track question is here: " \
+                            f"https://docs.google.com/spreadsheets/d/1AROdK4Vvq6NYxK2oNFpCQLZfYPhphunJfQ7qCeE2CSA" \
+                            f"/edit?usp=sharing\n"
+
+        await submission_feed_channel.send(embed=embed)
+
+
 @client.tree.command()
 @app_commands.describe(
     question_number="Question number (the one that shows up in front of the question name)",
     submission_link="Your submission link",
 )
 async def submit(interaction: discord.Interaction, question_number: int, submission_link: str):
-    # TODO check with LeetCode API or scrape it
-    if "submissions/" not in submission_link:
-        await interaction.response.send_message(f'Submission link must look like '
-                                                f'"https://leetcode.com/submissions/detail/808758751/" or '
-                                                f'"https://leetcode.com/problems/valid-anagram/submissions/811812564/"'
-                                                f'\n'
-                                                f'Your input arguments are "{question_number}", "{submission_link}"')
-        return
+    await interaction.response.send_message(f'This function is deprecated. Please use /add_user to link your account '
+                                            f'to the bot.')
 
-    insert_submission(interaction.user.id, question_number, submission_link)
-    await interaction.response.send_message(f'{interaction.user.mention} good job on completing {question_number} '
-                                            f'at {submission_link} !')
+    # if "submissions/" not in submission_link:
+    #     await interaction.response.send_message(f'Submission link must look like '
+    #                                             f'"https://leetcode.com/submissions/detail/808758751/" or '
+    #                                             f'"https://leetcode.com/problems/valid-anagram/submissions/811812564/"'
+    #                                             f'\n'
+    #                                             f'Your input arguments are "{question_number}", "{submission_link}"')
+    #     return
+    #
+    # insert_submission(interaction.user.id, question_number, submission_link)
+    # await interaction.response.send_message(f'{interaction.user.mention} good job on completing {question_number} '
+    #                                         f'at {submission_link} !')
 
 
 def insert_submission(discord_user_id, question_number, submission_link):
