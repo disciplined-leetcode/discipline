@@ -2,7 +2,7 @@ import asyncio
 import collections
 import datetime
 import os
-from time import sleep
+import threading
 
 import discord
 import pandas as pd
@@ -38,10 +38,13 @@ user_collection = db.user_collection
 
 
 async def question_of_the_day_task():
+    threading.Timer(30, question_of_the_day_task).start()
+
     while True:  # Or change to self.is_running or some variable to control the task
         day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + datetime.timedelta(hours=24)
         sleep_duration = (day_end - datetime.datetime.utcnow() + datetime.timedelta(minutes=2)).seconds
+        print(f"sleep: {sleep_duration}")
         await asyncio.sleep(sleep_duration)
         timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
         await send_question_of_the_day(timestamp)
@@ -54,8 +57,8 @@ async def send_question_of_the_day(timestamp):
 
     embed = discord.Embed(title=f"Question of the Day - {question_of_the_day['date']}")
     embed.description = f"@everyone Friendly reminder 🎗\n" \
-                        f"You must complete one of them by the end of 10/9 UTC⏱️. " \
-                        f"(Likely <t:{timestamp}:f> your time)\n\n" \
+                        f"You must complete one of them by the end of 10/9 UTC⏱️.\n" \
+                        f"Likely <t:{timestamp}:f> your time.\n\n" \
                         f"The **senior** track question is {question_of_the_day['question']['frontendQuestionId']} " \
                         f"{question_of_the_day['question']['title']}: " \
                         f"https://leetcode.com{question_of_the_day['link']}\n" \
@@ -90,7 +93,7 @@ class MyClient(discord.Client):
                 discord_user_id = document["discord_user_id"]
                 discord_user = await client.fetch_user(discord_user_id)
                 user_data = model.get_user_data(leetcode_username)
-                sleep(SLEEP_INTERVAL_SECONDS)
+                await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
                 current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
                 prev_total = document["ac_count_total_submissions"]
                 num_new_submissions = current_total - prev_total
@@ -100,7 +103,7 @@ class MyClient(discord.Client):
 
                 update_user(discord_user_id, user_data, leetcode_username)
                 recent_submissions = model.get_recent_submissions(leetcode_username)
-                sleep(SLEEP_INTERVAL_SECONDS)
+                await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
 
                 for i in range(min(max_recent, num_new_submissions)):
                     submission = recent_submissions[i]
@@ -118,7 +121,7 @@ class MyClient(discord.Client):
 
                     try:
                         submission_detail = get_submission_details(submission['id'])
-                        sleep(SLEEP_INTERVAL_SECONDS)
+                        await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
                     except Exception as e:
                         printException(e)
 
@@ -277,4 +280,4 @@ async def report_message(interaction: discord.Interaction, message: discord.Mess
 
 
 client.run(os.getenv("TOKEN"))
-asyncio.run(question_of_the_day_task())
+question_of_the_day_task()

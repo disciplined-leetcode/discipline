@@ -18,5 +18,5 @@ source ~/.bashrc
 v ~/.bashrc
 pipenv install
 pipenv shell
-export DISCIPLINE_MODE=prod && nohup python discipline_bot.py > console.log 2>&1 &
+export DISCIPLINE_MODE=prod && nohup python -u discipline_bot.py > console.log 2>&1 &
 tail -F console.log
