@@ -37,19 +37,6 @@ submission_feed_collection = db.submission_feed_collection
 user_collection = db.user_collection
 
 
-async def question_of_the_day_task():
-    threading.Timer(30, question_of_the_day_task).start()
-
-    while True:  # Or change to self.is_running or some variable to control the task
-        day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + datetime.timedelta(hours=24)
-        sleep_duration = (day_end - datetime.datetime.utcnow() + datetime.timedelta(minutes=2)).seconds
-        print(f"sleep: {sleep_duration}")
-        await asyncio.sleep(sleep_duration)
-        timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
-        await send_question_of_the_day(timestamp)
-
-
 async def send_question_of_the_day(timestamp):
     question_of_the_day = model.get_question_of_the_day()
     guild = client.get_guild(GUILD_ID)
@@ -57,11 +44,11 @@ async def send_question_of_the_day(timestamp):
 
     embed = discord.Embed(title=f"Question of the Day - {question_of_the_day['date']}")
     embed.description = f"@everyone Friendly reminder 🎗\n" \
-                        f"You must complete one of them by the end of 10/9 UTC⏱️.\n" \
+                        f"You must complete one of them by the end of {question_of_the_day['date']} UTC⏱️.\n" \
                         f"Likely <t:{timestamp}:f> your time.\n\n" \
                         f"The **senior** track question is {question_of_the_day['question']['frontendQuestionId']} " \
                         f"{question_of_the_day['question']['title']}: " \
-                        f"https://leetcode.com{question_of_the_day['link']}\n" \
+                        f"https://leetcode.com{question_of_the_day['link']}\n\n" \
                         f"The **junior** track question is here: " \
                         f"https://docs.google.com/spreadsheets/d/1AROdK4Vvq6NYxK2oNFpCQLZfYPhphunJfQ7qCeE2CSA" \
                         f"/edit?usp=sharing\n"
@@ -79,7 +66,18 @@ class MyClient(discord.Client):
     async def setup_hook(self):
         self.tree.copy_global_to(guild=MY_GUILD)  # This copies the global commands over to your guild.
         await self.tree.sync(guild=MY_GUILD)
+        self.question_of_the_day_task.start()
         self.get_feed.start()
+
+    @tasks.loop(hours=24)
+    async def question_of_the_day_task(self):
+        day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + datetime.timedelta(hours=24)
+        sleep_duration = (day_end - datetime.datetime.utcnow() + datetime.timedelta(minutes=2)).seconds
+        print(f"sleep: {sleep_duration}")
+        await asyncio.sleep(sleep_duration)
+        timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
+        await send_question_of_the_day(timestamp)
 
     @tasks.loop(seconds=int(os.getenv("REFRESH_INTERVAL_SECONDS")))
     async def get_feed(self):
@@ -148,6 +146,7 @@ class MyClient(discord.Client):
                 print(document)
                 printException(e)
 
+    @question_of_the_day_task.before_loop
     @get_feed.before_loop
     async def before_my_task(self):
         await self.wait_until_ready()  # wait until the bot logs in
@@ -174,7 +173,12 @@ async def submit(interaction: discord.Interaction, question_number: int, submiss
 
 @client.tree.command()
 async def announce_question_of_the_day(interaction: discord.Interaction):
-    await send_question_of_the_day(1665360000)
+    await asyncio.sleep(10)
+    day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + datetime.timedelta(hours=24)
+    timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
+
+    await send_question_of_the_day(timestamp)
     await interaction.response.send_message("Announced")
 
 
@@ -280,4 +284,3 @@ async def report_message(interaction: discord.Interaction, message: discord.Mess
 
 
 client.run(os.getenv("TOKEN"))
-question_of_the_day_task()
