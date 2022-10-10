@@ -10,6 +10,7 @@ import pymongo
 import pytz
 from discord import app_commands, Embed
 from discord.ext import tasks
+from discord.utils import get
 from dotenv import load_dotenv
 
 from leet_simulator import get_submission_details
@@ -227,33 +228,38 @@ def update_user(discord_user_id, user_data, leetcode_username):
 
 
 @client.tree.command()
-async def kick_inactive(interaction: discord.Interaction):
-    if interaction.channel_id != os.getenv("MOD_CHANNEL"):
+async def kick_inactive(interaction: discord.Interaction, days_before: int = 1):
+    if interaction.channel_id != int(os.getenv("MOD_CHANNEL")):
         await interaction.response.send_message("Please invoke the command in the right channel.")
         return
 
-    # TODO Filter by time and remove the Active role
-    df = pd.read_csv('./user_files/submissions.csv')
-    cutoff = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC) - datetime.timedelta(days=2)
+    # submission_feed_collection.create_index([('timestamp', pymongo.TEXT)], name='timestamp_index',
+    #                                         default_language='english')
+    cutoff = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC) - datetime.timedelta(days=days_before)
+    iterator = submission_feed_collection.find({"timestamp": {"$gte": str(cutoff.timestamp())}})
+    leetcode_users_with_submissions = {document["leetcode_username"] for document in iterator}
+    discord_users_with_submissions = [user_collection.find_one(filter={"leetcode_username": leetcode_username},
+                                                               projection={"discord_user_id": 1})['discord_user_id']
+                                      for leetcode_username in leetcode_users_with_submissions]
 
-    guild = client.get_guild(GUILD_ID)
-    users_with_submissions = set(df["user_id"].unique())
     kicked = []
     warned = []
+    guild = client.get_guild(GUILD_ID)
+    active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
 
     for member in guild.members:
         join_date_time = member.joined_at
 
         if join_date_time and join_date_time < cutoff and not member.bot:
-            goal = "regain access to member channels" if member.id in users_with_submissions else "rejoin the server"
-            # await member.dm_channel.send(f"You have not made any LeetCode submission in the server {guild.name}"
-            #                              "in the last few days.\n"
-            #                              f"To {goal}, contact Zack#2664")
+            goal = "regain access to member channels"
+            await member.dm_channel.send(f"You have not made any LeetCode submission in the server {guild.name}"
+                                         "in the last few days.\n"
+                                         f"To {goal}, please make a donation at "
+                                         f"<#{os.getenv('SUBMISSION_FEED_CHANNEL_ID')}>")
 
-            if member.id in users_with_submissions:
+            if member.id not in discord_users_with_submissions:
                 warned.append(f"{member.name} ({member.id})")
-            else:
-                kicked.append(f"{member.name} ({member.id})")
+                await member.remove_roles(active_role, reason="Lack of submissions")
                 # await guild.kick(member)
 
     await interaction.response.send_message(f"Kicked {len(kicked)} members.\n{', '.join(kicked)} \n"
