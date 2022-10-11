@@ -38,7 +38,11 @@ submission_feed_collection = db.submission_feed_collection
 user_collection = db.user_collection
 
 
-async def send_question_of_the_day(timestamp):
+async def send_question_of_the_day():
+    day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + datetime.timedelta(hours=24)
+    timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
+
     question_of_the_day = model.get_question_of_the_day()
     guild = client.get_guild(GUILD_ID)
     question_of_the_day_channel = guild.get_channel(question_of_the_day_channel_id)
@@ -77,8 +81,7 @@ class MyClient(discord.Client):
         sleep_duration = (day_end - datetime.datetime.utcnow() + datetime.timedelta(minutes=2)).seconds
         print(f"sleep: {sleep_duration}")
         await asyncio.sleep(sleep_duration)
-        timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
-        await send_question_of_the_day(timestamp)
+        await send_question_of_the_day()
 
     @tasks.loop(seconds=int(os.getenv("REFRESH_INTERVAL_SECONDS")))
     async def get_feed(self):
@@ -174,12 +177,7 @@ async def submit(interaction: discord.Interaction, question_number: int, submiss
 
 @client.tree.command()
 async def announce_question_of_the_day(interaction: discord.Interaction):
-    await asyncio.sleep(10)
-    day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = day_start + datetime.timedelta(hours=24)
-    timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
-
-    await send_question_of_the_day(timestamp)
+    await send_question_of_the_day()
     await interaction.response.send_message("Announced")
 
 
