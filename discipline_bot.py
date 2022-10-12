@@ -25,7 +25,7 @@ GUILD_ID = int(os.getenv("GUILD_ID"))
 submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
 question_of_the_day_channel_id = int(os.getenv("QUESTION_OF_THE_DAY_CHANNEL_ID"))
 MY_GUILD = discord.Object(id=GUILD_ID)
-model = leetmodel(os.getenv("LEETCODE_ACCOUNT_NAME"), os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
+leetcode_model = leetmodel(os.getenv("LEETCODE_ACCOUNT_NAME"), os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
 leetcode_questions = pd.read_csv('./public_data/leetcode_questions.csv', header=0)
 leetcode_questions["link"] = "https://leetcode.com/problems/" + leetcode_questions["titleSlug"] + "/"
 leetcode_questions = leetcode_questions.set_index("titleSlug")
@@ -43,7 +43,7 @@ async def send_question_of_the_day():
     day_end = day_start + datetime.timedelta(hours=24)
     timestamp = int(day_end.replace(tzinfo=datetime.timezone.utc).timestamp())
 
-    question_of_the_day = model.get_question_of_the_day()
+    question_of_the_day = leetcode_model.get_question_of_the_day()
     guild = client.get_guild(GUILD_ID)
     question_of_the_day_channel = guild.get_channel(question_of_the_day_channel_id)
 
@@ -94,7 +94,7 @@ class MyClient(discord.Client):
                 leetcode_username = document["leetcode_username"]
                 discord_user_id = document["discord_user_id"]
                 discord_user = await client.fetch_user(discord_user_id)
-                user_data = model.get_user_data(leetcode_username)
+                user_data = leetcode_model.get_user_data(leetcode_username)
                 await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
                 current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
                 prev_total = document["ac_count_total_submissions"]
@@ -104,7 +104,7 @@ class MyClient(discord.Client):
                     continue
 
                 update_user(discord_user_id, user_data, leetcode_username)
-                recent_submissions = model.get_recent_submissions(leetcode_username)
+                recent_submissions = leetcode_model.get_recent_submissions(leetcode_username)
                 await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
 
                 for i in range(min(max_recent, num_new_submissions)):
@@ -192,13 +192,24 @@ def insert_submission(discord_user_id, question_number, submission_link):
 
 @client.tree.command()
 async def add_user(interaction: discord.Interaction, leetcode_username: str):
-    user_data = model.get_user_data(leetcode_username)
+    user_data = leetcode_model.get_user_data(leetcode_username)
 
     if not user_data:
         await interaction.response.send_message(f'Could not add {leetcode_username}: Check the username!')
         return
 
-    update_user(interaction.user.id, user_data, leetcode_username)
+    discord_user_id = interaction.user.id
+    if user_collection.find_one({'discord_user_id': discord_user_id}):
+        await interaction.response.send_message(f'Your discord account has joined in the past!\n'
+                                                f'If you do not have access to channels, '
+                                                f'unlock it via <#{os.getenv("SUPPORT_CHANNEL_ID")}> ')
+        return
+
+    update_user(discord_user_id, user_data, leetcode_username)
+
+    guild = client.get_guild(GUILD_ID)
+    active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
+    await interaction.user.add_roles(active_role, reason="Grant newly associated user access to channels.")
 
     await interaction.response.send_message(f'Added {leetcode_username}!')
 
@@ -253,7 +264,7 @@ async def kick_inactive(interaction: discord.Interaction, days_before: int = 1):
             await member.dm_channel.send(f"You have not made any LeetCode submission in the server {guild.name}"
                                          "in the last few days.\n"
                                          f"To {goal}, please make a donation at "
-                                         f"<#{os.getenv('SUBMISSION_FEED_CHANNEL_ID')}>")
+                                         f"<#{os.getenv('SUPPORT_CHANNEL_ID')}>")
 
             if member.id not in discord_users_with_submissions:
                 warned.append(f"{member.name} ({member.id})")
