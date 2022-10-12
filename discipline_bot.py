@@ -259,17 +259,20 @@ async def kick_inactive(interaction: discord.Interaction, days_before: int = 1):
     for member in guild.members:
         join_date_time = member.joined_at
 
-        if join_date_time and join_date_time < cutoff and not member.bot:
+        if join_date_time and join_date_time < cutoff and not member.bot \
+                and member.id not in discord_users_with_submissions:
             goal = "regain access to member channels"
+            await member.create_dm()
             await member.dm_channel.send(f"You have not made any LeetCode submission in the server {guild.name}"
                                          "in the last few days.\n"
                                          f"To {goal}, please make a donation at "
                                          f"<#{os.getenv('SUPPORT_CHANNEL_ID')}>")
 
-            if member.id not in discord_users_with_submissions:
-                warned.append(f"{member.name} ({member.id})")
-                await member.remove_roles(active_role, reason="Lack of submissions")
-                # await guild.kick(member)
+            warned.append(f"{member.name} ({member.id})")
+            await member.remove_roles(active_role, reason="Lack of submissions")
+
+            # await guild.kick(member)
+            # kicked.append(f"{member.name} ({member.id})")
 
     await interaction.response.send_message(f"Kicked {len(kicked)} members.\n{', '.join(kicked)} \n"
                                             f"Warned {len(warned)} members.\n{', '.join(warned)}")
