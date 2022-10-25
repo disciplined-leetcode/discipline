@@ -237,11 +237,12 @@ def update_user(discord_user_id, user_data, leetcode_username):
 
 
 @client.tree.command()
-async def kick_inactive(interaction: discord.Interaction, days_before: int = 1):
+async def kick_inactive(interaction: discord.Interaction, days_before: int = 2):
     if interaction.channel_id != int(os.getenv("MOD_CHANNEL")):
         await interaction.response.send_message("Please invoke the command in the right channel.")
         return
 
+    await interaction.response.send_message("Working")
     # submission_feed_collection.create_index([('timestamp', pymongo.TEXT)], name='timestamp_index',
     #                                         default_language='english')
     cutoff = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC) - datetime.timedelta(days=days_before)
@@ -256,26 +257,31 @@ async def kick_inactive(interaction: discord.Interaction, days_before: int = 1):
     guild = client.get_guild(GUILD_ID)
     active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
 
-    for member in guild.members:
+    for member in active_role.members:
         join_date_time = member.joined_at
 
-        if join_date_time and join_date_time < cutoff and not member.bot \
-                and member.id not in discord_users_with_submissions:
-            goal = "regain access to member channels"
-            await member.create_dm()
-            await member.dm_channel.send(f"You have not made any LeetCode submission in the server {guild.name}"
-                                         "in the last few days.\n"
-                                         f"To {goal}, please make a donation at "
-                                         f"<#{os.getenv('SUPPORT_CHANNEL_ID')}>")
+        if not (join_date_time and join_date_time < cutoff and not member.bot
+                and member.id not in discord_users_with_submissions):
+            continue
 
-            warned.append(f"{member.name} ({member.id})")
-            await member.remove_roles(active_role, reason="Lack of submissions")
+        goal = "regain access to member channels"
+        # TODO Send to a specific active channel
+        await interaction.channel.send(
+            f"{member.mention} You have not made any LeetCode submission in the server {guild.name}"
+            "in the last few days.\n"
+            f"To {goal}, please make a donation at "
+            f"<#{os.getenv('SUPPORT_CHANNEL_ID')}>")
 
-            # await guild.kick(member)
-            # kicked.append(f"{member.name} ({member.id})")
+        warned.append(f"{member.name} ({member.id})")
+        # TODO uncomment this line after testing
+        # await member.remove_roles(active_role, reason="Lack of submissions")
 
-    await interaction.response.send_message(f"Kicked {len(kicked)} members.\n{', '.join(kicked)} \n"
-                                            f"Warned {len(warned)} members.\n{', '.join(warned)}")
+        # await guild.kick(member)
+        # kicked.append(f"{member.name} ({member.id})")
+
+    print(f"Kicked {len(kicked)} members.\n{', '.join(kicked)} \n"
+          f"Warned {len(warned)} members.\n{', '.join(warned)}")
+    await interaction.followup.send(f"Kicked {len(kicked)} members.\nWarned {len(warned)} members.")
 
 
 @client.tree.context_menu(name='Report to Moderators')
