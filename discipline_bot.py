@@ -2,7 +2,6 @@ import asyncio
 import collections
 import datetime
 import os
-import threading
 
 import discord
 import pandas as pd
@@ -15,7 +14,7 @@ from dotenv import load_dotenv
 
 from leet_simulator import get_submission_details
 from leetmodel import leetmodel
-from util import printException
+from util import printException, duration_till_next_day
 
 DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
@@ -71,15 +70,21 @@ class MyClient(discord.Client):
     async def setup_hook(self):
         self.tree.copy_global_to(guild=MY_GUILD)  # This copies the global commands over to your guild.
         await self.tree.sync(guild=MY_GUILD)
+        self.kicker_task.start()
         self.question_of_the_day_task.start()
         self.get_feed.start()
 
     @tasks.loop(hours=24)
+    async def kicker_task(self):
+        sleep_duration = (duration_till_next_day() + datetime.timedelta(minutes=1)).seconds
+        print(f"sleep - kicker_task: {sleep_duration}")
+        await asyncio.sleep(sleep_duration)
+        await handle_kicking(3)
+
+    @tasks.loop(hours=24)
     async def question_of_the_day_task(self):
-        day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + datetime.timedelta(hours=24)
-        sleep_duration = (day_end - datetime.datetime.utcnow() + datetime.timedelta(minutes=2)).seconds
-        print(f"sleep: {sleep_duration}")
+        sleep_duration = (duration_till_next_day() + datetime.timedelta(minutes=2)).seconds
+        print(f"sleep - question_of_the_day_task: {sleep_duration}")
         await asyncio.sleep(sleep_duration)
         await send_question_of_the_day()
 
@@ -151,6 +156,11 @@ class MyClient(discord.Client):
                 printException(e)
 
     @question_of_the_day_task.before_loop
+    @get_feed.before_loop
+    async def before_my_task(self):
+        await self.wait_until_ready()  # wait until the bot logs in
+
+    @kicker_task.before_loop
     @get_feed.before_loop
     async def before_my_task(self):
         await self.wait_until_ready()  # wait until the bot logs in
@@ -237,14 +247,18 @@ def update_user(discord_user_id, user_data, leetcode_username):
 
 
 @client.tree.command()
-async def kick_inactive(interaction: discord.Interaction, days_before: int = 2):
+async def kick_inactive(interaction: discord.Interaction, days_before: int):
+    # Only the mod can invoke this command
     if interaction.channel_id != int(os.getenv("MOD_CHANNEL")):
         await interaction.response.send_message("Please invoke the command in the right channel.")
         return
 
     await interaction.response.send_message("Working")
-    # submission_feed_collection.create_index([('timestamp', pymongo.TEXT)], name='timestamp_index',
-    #                                         default_language='english')
+    warned = await handle_kicking(days_before)
+    await interaction.followup.send(f"Warned {len(warned)} members.")
+
+
+async def handle_kicking(days_before: int = 7):
     cutoff = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC) - datetime.timedelta(days=days_before)
     iterator = submission_feed_collection.find({"timestamp": {"$gte": str(cutoff.timestamp())}})
     leetcode_users_with_submissions = {document["leetcode_username"] for document in iterator}
@@ -252,9 +266,9 @@ async def kick_inactive(interaction: discord.Interaction, days_before: int = 2):
                                                                projection={"discord_user_id": 1})['discord_user_id']
                                       for leetcode_username in leetcode_users_with_submissions]
 
-    kicked = []
     warned = []
     guild = client.get_guild(GUILD_ID)
+    general_channel = guild.get_channel(int(os.getenv("GENERAL_CHANNEL_ID")))
     active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
 
     for member in active_role.members:
@@ -265,23 +279,17 @@ async def kick_inactive(interaction: discord.Interaction, days_before: int = 2):
             continue
 
         goal = "regain access to member channels"
-        # TODO Send to a specific active channel
-        await interaction.channel.send(
+        await general_channel.send(
             f"{member.mention} You have not made any LeetCode submission in the server {guild.name}"
             "in the last few days.\n"
             f"To {goal}, please make a donation at "
             f"<#{os.getenv('SUPPORT_CHANNEL_ID')}>")
 
         warned.append(f"{member.name} ({member.id})")
-        # TODO uncomment this line after testing
-        # await member.remove_roles(active_role, reason="Lack of submissions")
+        await member.remove_roles(active_role, reason="Lack of submissions")
 
-        # await guild.kick(member)
-        # kicked.append(f"{member.name} ({member.id})")
-
-    print(f"Kicked {len(kicked)} members.\n{', '.join(kicked)} \n"
-          f"Warned {len(warned)} members.\n{', '.join(warned)}")
-    await interaction.followup.send(f"Kicked {len(kicked)} members.\nWarned {len(warned)} members.")
+    print(f"Warned {len(warned)} members.\n{', '.join(warned)}")
+    return warned
 
 
 @client.tree.context_menu(name='Report to Moderators')
