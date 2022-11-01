@@ -268,7 +268,7 @@ async def handle_kicking(days_before: int = 7):
 
     warned = []
     guild = client.get_guild(GUILD_ID)
-    general_channel = guild.get_channel(int(os.getenv("GENERAL_CHANNEL_ID")))
+    prospective_chat_channel = guild.get_channel(int(os.getenv("PROSPECTIVE_CHAT_CHANNEL_ID")))
     active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
 
     for member in active_role.members:
@@ -279,7 +279,7 @@ async def handle_kicking(days_before: int = 7):
             continue
 
         goal = "regain access to member channels"
-        await general_channel.send(
+        await prospective_chat_channel.send(
             f"{member.mention} You have not made any LeetCode submission in the server {guild.name}"
             "in the last few days.\n"
             f"To {goal}, please make a donation at "
