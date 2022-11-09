@@ -93,20 +93,19 @@ class MyClient(discord.Client):
         guild = client.get_guild(GUILD_ID)
         active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
         submission_feed_channel = guild.get_channel(submission_feed_channel_id)
-        # user_collection.create_index([('discord_user_id', pymongo.ASCENDING)], name='discord_user_id_index')
 
         for member in active_role.members:
-            document = user_collection.find_one({'discord_user_id': member.id},
-                                                {"discord_user_id": 1, "leetcode_username": 1,
+            discord_user_id = member.id
+            document = user_collection.find_one({'discord_user_id': discord_user_id},
+                                                {"leetcode_username": 1,
                                                  "ac_count_total_submissions": 1})
 
             if not document:
-                print(f"WARNING: user document not found for member {member} with id {member.id}")
+                print(f"WARNING: user document not found for member {member} with id {discord_user_id}")
                 continue
 
             try:
                 leetcode_username = document["leetcode_username"]
-                discord_user_id = document["discord_user_id"]
                 discord_user = await client.fetch_user(discord_user_id)
                 user_data = leetcode_model.get_user_data(leetcode_username)
                 await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
@@ -211,26 +210,36 @@ def insert_submission(discord_user_id, question_number, submission_link):
 
 @client.tree.command()
 async def add_user(interaction: discord.Interaction, leetcode_username: str):
-    user_data = leetcode_model.get_user_data(leetcode_username)
-
-    if not user_data:
-        await interaction.response.send_message(f'Could not add {leetcode_username}: Check the username!')
-        return
-
     discord_user_id = interaction.user.id
-    if user_collection.find_one({'discord_user_id': discord_user_id}):
-        await interaction.response.send_message(f'Your discord account has joined in the past!\n'
-                                                f'If you do not have access to channels, '
-                                                f'unlock it via <#{os.getenv("SUPPORT_CHANNEL_ID")}> ')
-        return
-
-    update_user(discord_user_id, user_data, leetcode_username)
-
+    user_data = leetcode_model.get_user_data(leetcode_username)
     guild = client.get_guild(GUILD_ID)
     active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
-    await interaction.user.add_roles(active_role, reason="Grant newly associated user access to channels.")
 
-    await interaction.response.send_message(f'Added {leetcode_username}!')
+    if not user_data:
+        await interaction.response.send_message(f'Could not add {leetcode_username}: Check the username')
+        return
+
+    # If necessary, remove user
+    user_document = user_collection.find_one({'discord_user_id': discord_user_id}, {"leetcode_username": 1})
+    old_leetcode_username = user_document["leetcode_username"]
+    
+    if old_leetcode_username:
+        if active_role not in interaction.user.roles:
+            await interaction.response.send_message(f'Your discord account has joined in the past!\n'
+                                                    f'If you do not have access to channels, '
+                                                    f'unlock it via <#{os.getenv("SUPPORT_CHANNEL_ID")}> ')
+            return
+
+        user_collection.delete_one({'leetcode_username': old_leetcode_username})
+        await interaction.response.send_message(f'Removed {old_leetcode_username}')
+        
+    # Add user
+    update_user(discord_user_id, user_data, leetcode_username)
+    
+    if not old_leetcode_username:
+        await interaction.user.add_roles(active_role, reason="Grant newly associated user access to channels.")
+
+    await interaction.followup.send(f'Added {leetcode_username}')
 
 
 def update_user(discord_user_id, user_data, leetcode_username):
@@ -269,6 +278,8 @@ async def kick_inactive(interaction: discord.Interaction, days_before: int):
 
 async def handle_kicking(days_before: int = 7):
     cutoff = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC) - datetime.timedelta(days=days_before)
+    # We go from submission_feed_collection to active users instead of the other way around to
+    # facilitate user redemption.
     iterator = submission_feed_collection.find({"timestamp": {"$gte": str(cutoff.timestamp())}})
     leetcode_users_with_submissions = {document["leetcode_username"] for document in iterator}
     discord_users_with_submissions = [user_collection.find_one(filter={"leetcode_username": leetcode_username},
