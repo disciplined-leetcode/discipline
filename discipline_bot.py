@@ -7,7 +7,7 @@ import discord
 import pandas as pd
 import pymongo
 import pytz
-from discord import app_commands, Embed
+from discord import app_commands, Embed, Member
 from discord.ext import tasks
 from discord.utils import get
 from dotenv import load_dotenv
@@ -58,6 +58,14 @@ async def send_question_of_the_day():
                         f"/edit?usp=sharing\n"
 
     await question_of_the_day_channel.send(embed=embed)
+
+
+async def verify_permissions(interaction):
+    if interaction.channel_id != int(os.getenv("MOD_CHANNEL")):
+        await interaction.response.send_message("Please invoke the command in the right channel.")
+        return False
+
+    return True
 
 
 class MyClient(discord.Client):
@@ -210,33 +218,49 @@ def insert_submission(discord_user_id, question_number, submission_link):
 
 @client.tree.command()
 async def add_user(interaction: discord.Interaction, leetcode_username: str):
-    discord_user_id = interaction.user.id
+    await handle_add_user(interaction, leetcode_username, interaction.user)
+
+
+@client.tree.command()
+async def admin_add_user(interaction: discord.Interaction, leetcode_username: str, discord_user: Member):
+    if not await verify_permissions(interaction):
+        return
+
+    await handle_add_user(interaction, leetcode_username, discord_user)
+
+
+async def handle_add_user(interaction: discord.Interaction, leetcode_username: str, discord_user: Member):
+    await interaction.response.send_message("Working")
+
+    discord_user_id = discord_user.id
     user_data = leetcode_model.get_user_data(leetcode_username)
     guild = client.get_guild(GUILD_ID)
     active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
 
     if not user_data:
-        await interaction.response.send_message(f'Could not add {leetcode_username}: Check the username')
+        await interaction.followup.send(f'Could not add {leetcode_username}: Check the username')
         return
 
     # If necessary, remove user
     user_document = user_collection.find_one({'discord_user_id': discord_user_id}, {"leetcode_username": 1})
-    old_leetcode_username = user_document["leetcode_username"]
-    
-    if old_leetcode_username:
-        if active_role not in interaction.user.roles:
-            await interaction.response.send_message(f'Your discord account has joined in the past!\n'
-                                                    f'If you do not have access to channels, '
-                                                    f'unlock it via <#{os.getenv("SUPPORT_CHANNEL_ID")}> ')
+
+    if user_document:
+        old_leetcode_username = user_document["leetcode_username"]
+
+        if active_role not in discord_user.roles:
+            await interaction.followup.send(f'Your discord account has joined in the past!\n'
+                                            f'If you do not have access to channels, '
+                                            f'unlock it via <#{os.getenv("SUPPORT_CHANNEL_ID")}> ')
             return
 
         user_collection.delete_one({'leetcode_username': old_leetcode_username})
-        await interaction.response.send_message(f'Removed {old_leetcode_username}')
-        
+        await interaction.followup.send(f'Removed {old_leetcode_username}\n'
+                                        f'Resubmit LeetCode solutions if necessary.')
+
     # Add user
     update_user(discord_user_id, user_data, leetcode_username)
-    
-    if not old_leetcode_username:
+
+    if not user_document:
         await interaction.user.add_roles(active_role, reason="Grant newly associated user access to channels.")
 
     await interaction.followup.send(f'Added {leetcode_username}')
@@ -267,8 +291,7 @@ def update_user(discord_user_id, user_data, leetcode_username):
 @client.tree.command()
 async def kick_inactive(interaction: discord.Interaction, days_before: int):
     # Only the mod can invoke this command
-    if interaction.channel_id != int(os.getenv("MOD_CHANNEL")):
-        await interaction.response.send_message("Please invoke the command in the right channel.")
+    if not await verify_permissions(interaction):
         return
 
     await interaction.response.send_message("Working")
