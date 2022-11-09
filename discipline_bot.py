@@ -91,10 +91,19 @@ class MyClient(discord.Client):
     @tasks.loop(seconds=int(os.getenv("REFRESH_INTERVAL_SECONDS")))
     async def get_feed(self):
         guild = client.get_guild(GUILD_ID)
+        active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
         submission_feed_channel = guild.get_channel(submission_feed_channel_id)
+        # user_collection.create_index([('discord_user_id', pymongo.ASCENDING)], name='discord_user_id_index')
 
-        for document in user_collection.find({}, {"discord_user_id": 1, "leetcode_username": 1,
-                                                  "ac_count_total_submissions": 1}):
+        for member in active_role.members:
+            document = user_collection.find_one({'discord_user_id': member.id},
+                                                {"discord_user_id": 1, "leetcode_username": 1,
+                                                 "ac_count_total_submissions": 1})
+
+            if not document:
+                print(f"WARNING: user document not found for member {member} with id {member.id}")
+                continue
+
             try:
                 leetcode_username = document["leetcode_username"]
                 discord_user_id = document["discord_user_id"]
@@ -280,8 +289,7 @@ async def handle_kicking(days_before: int = 7):
 
         goal = "regain access to member channels"
         await prospective_chat_channel.send(
-            f"{member.mention} You have not made any LeetCode submission in the server {guild.name}"
-            "in the last few days.\n"
+            f"{member.mention} You have not made any LeetCode submission in the last few days.\n"
             f"To {goal}, please make a donation at "
             f"<#{os.getenv('SUPPORT_CHANNEL_ID')}>")
 
