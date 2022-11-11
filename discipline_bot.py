@@ -12,9 +12,19 @@ from discord.ext import tasks
 from discord.utils import get
 from dotenv import load_dotenv
 
+import functools
+import typing
+import asyncio
+
 from leet_simulator import get_submission_details
 from leetmodel import leetmodel
 from util import printException, duration_till_next_day
+
+def to_thread(func: typing.Callable) -> typing.Coroutine:
+     @functools.wraps(func)
+     async def wrapper(*args, **kwargs):
+         return await asyncio.to_thread(func, *args, **kwargs)
+     return wrapper
 
 DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
@@ -98,78 +108,81 @@ class MyClient(discord.Client):
 
     @tasks.loop(seconds=int(os.getenv("REFRESH_INTERVAL_SECONDS")))
     async def get_feed(self):
-        guild = client.get_guild(GUILD_ID)
-        active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
-        submission_feed_channel = guild.get_channel(submission_feed_channel_id)
+        @to_thread
+        async def get_feed_thread():
+            guild = client.get_guild(GUILD_ID)
+            active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
+            submission_feed_channel = guild.get_channel(submission_feed_channel_id)
 
-        for member in active_role.members:
-            discord_user_id = member.id
-            document = user_collection.find_one({'discord_user_id': discord_user_id},
-                                                {"leetcode_username": 1,
-                                                 "ac_count_total_submissions": 1})
+            for member in active_role.members:
+                discord_user_id = member.id
+                document = user_collection.find_one({'discord_user_id': discord_user_id},
+                                                    {"leetcode_username": 1,
+                                                     "ac_count_total_submissions": 1})
 
-            if not document:
-                print(f"WARNING: user document not found for member {member} with id {discord_user_id}")
-                continue
-
-            try:
-                leetcode_username = document["leetcode_username"]
-                discord_user = await client.fetch_user(discord_user_id)
-                user_data = leetcode_model.get_user_data(leetcode_username)
-                await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
-                current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
-                prev_total = document["ac_count_total_submissions"]
-                num_new_submissions = current_total - prev_total
-
-                if not num_new_submissions:
+                if not document:
+                    print(f"WARNING: user document not found for member {member} with id {discord_user_id}")
                     continue
 
-                update_user(discord_user_id, user_data, leetcode_username)
-                recent_submissions = leetcode_model.get_recent_submissions(leetcode_username)
-                await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
+                try:
+                    leetcode_username = document["leetcode_username"]
+                    discord_user = await client.fetch_user(discord_user_id)
+                    user_data = leetcode_model.get_user_data(leetcode_username)
+                    await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
+                    current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
+                    prev_total = document["ac_count_total_submissions"]
+                    num_new_submissions = current_total - prev_total
 
-                for i in range(min(max_recent, num_new_submissions)):
-                    submission = recent_submissions[i]
-
-                    if submission["statusDisplay"] != "Accepted":
+                    if not num_new_submissions:
                         continue
 
-                    timestamp = datetime.datetime.fromtimestamp(int(submission["timestamp"]))
-                    submission["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
-                    submission["leetcode_username"] = leetcode_username
-                    submission["discord_user_id"] = discord_user_id
-                    submission.update(title_slug_to_data[submission["titleSlug"]])
-                    submission_feed_collection.insert_one(submission)
-                    submission_detail = collections.defaultdict(lambda: '')
+                    update_user(discord_user_id, user_data, leetcode_username)
+                    recent_submissions = leetcode_model.get_recent_submissions(leetcode_username)
+                    await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
 
-                    try:
-                        submission_detail = get_submission_details(submission['id'])
-                        await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
-                    except Exception as e:
-                        printException(e)
+                    for i in range(min(max_recent, num_new_submissions)):
+                        submission = recent_submissions[i]
 
-                    desc = f"Congrats! {discord_user.display_name} solved " \
-                           f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) "
+                        if submission["statusDisplay"] != "Accepted":
+                            continue
 
-                    if submission_detail['runtime']:
-                        desc += f"in {submission_detail['lang']}.\n" \
-                                f"It beat by\n" \
-                                f"**runtime {submission_detail['runtime']}**, and by\n" \
-                                f"**memory {submission_detail['memory']}**.\n" \
-                                f"```{submission_detail['lang'].removesuffix('3')}\n" \
-                                f"{submission_detail['code']}" \
-                                f"```"
+                        timestamp = datetime.datetime.fromtimestamp(int(submission["timestamp"]))
+                        submission["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
+                        submission["leetcode_username"] = leetcode_username
+                        submission["discord_user_id"] = discord_user_id
+                        submission.update(title_slug_to_data[submission["titleSlug"]])
+                        submission_feed_collection.insert_one(submission)
+                        submission_detail = collections.defaultdict(lambda: '')
 
-                    embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
-                                                 color=5025616)
+                        try:
+                            submission_detail = get_submission_details(submission['id'])
+                            await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
+                        except Exception as e:
+                            printException(e)
 
-                    icon_url = discord_user.avatar.url if discord_user.avatar else None
-                    embed.set_footer(text=f"{discord_user.display_name}", icon_url=icon_url)
+                        desc = f"Congrats! {discord_user.display_name} solved " \
+                               f"[{submission['title']}](https://leetcode.com/submissions/detail/{submission['id']}/) "
 
-                    await submission_feed_channel.send(embed=embed)
-            except Exception as e:
-                print(document)
-                printException(e)
+                        if submission_detail['runtime']:
+                            desc += f"in {submission_detail['lang']}.\n" \
+                                    f"It beat by\n" \
+                                    f"**runtime {submission_detail['runtime']}**, and by\n" \
+                                    f"**memory {submission_detail['memory']}**.\n" \
+                                    f"```{submission_detail['lang'].removesuffix('3')}\n" \
+                                    f"{submission_detail['code']}" \
+                                    f"```"
+
+                        embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
+                                                     color=5025616)
+
+                        icon_url = discord_user.avatar.url if discord_user.avatar else None
+                        embed.set_footer(text=f"{discord_user.display_name}", icon_url=icon_url)
+
+                        await submission_feed_channel.send(embed=embed)
+                except Exception as e:
+                    print(document)
+                    printException(e)
+        await get_feed_thread()
 
     @question_of_the_day_task.before_loop
     @get_feed.before_loop
