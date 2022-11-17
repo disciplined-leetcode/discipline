@@ -159,6 +159,9 @@ class MyClient(discord.Client):
                                 f"```{submission_detail['lang'].removesuffix('3')}\n" \
                                 f"{submission_detail['code']}" \
                                 f"```"
+                    else:
+                        await guild.get_channel(int(os.getenv("MOD_CHANNEL"))).send("Cookie expired, please update "
+                                                                                    "cookie")
 
                     embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
                                                  color=5025616)
