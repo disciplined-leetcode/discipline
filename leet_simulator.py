@@ -2,9 +2,18 @@ import json
 
 import requests
 
-from private import cookies
+from cookies_model import CookieModel
 
-__all__ = ['get_submission_details']
+cookie_model = CookieModel()
+# if file exists, read cookies from file
+try:
+    with open("cookies.txt", "r") as f:
+        cookie_model.set(f.read())
+except FileNotFoundError:
+    print("No cookies.txt file found, please set using /admin_set_cookies")
+
+
+__all__ = ["get_submission_details", "set_cookies"]
 
 headers = {
     'authority': 'leetcode.com',
@@ -47,5 +56,11 @@ def get_submission_details(submission_id):
     }
 
 
-if __name__ == '__main__':
+async def set_cookies(cookies):
+    status = cookie_model.set(cookies)
+    with open("cookies.txt", "w") as f:
+        f.write(cookies)
+    return status
+
+if __name__ == "__main__":
     print(get_submission_details(815504963))

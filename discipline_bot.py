@@ -12,11 +12,11 @@ from discord.ext import tasks
 from discord.utils import get
 from dotenv import load_dotenv
 
-from leet_simulator import get_submission_details
+from leet_simulator import get_submission_details, set_cookies as handle_set_cookies
 from leetmodel import leetmodel
 from util import printException, duration_till_next_day
 
-DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
+DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "prod")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
 SLEEP_INTERVAL_SECONDS = int(os.getenv("SLEEP_INTERVAL_SECONDS"))
 max_recent = 20
@@ -222,7 +222,18 @@ async def add_user(interaction: discord.Interaction, leetcode_username: str):
 
 
 @client.tree.command()
-async def admin_add_user(interaction: discord.Interaction, leetcode_username: str, discord_user: Member):
+async def admin_set_cookies(interaction: discord.Interaction, cookies: str):
+    if not await verify_permissions(interaction):
+        return
+    status = await handle_set_cookies(cookies)
+    message = "Cookie updated " + ("" if status else "un") + "successfully."
+    await interaction.response.send_message(message)
+
+
+@client.tree.command()
+async def admin_add_user(
+    interaction: discord.Interaction, leetcode_username: str, discord_user: Member
+):
     if not await verify_permissions(interaction):
         return
 
