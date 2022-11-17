@@ -1,4 +1,5 @@
 __all__ = ["CookieModel"]
+import urllib.parse
 
 
 class CookieModel:
@@ -7,10 +8,8 @@ class CookieModel:
 
     def set(self, cookie_str: str) -> bool:
         try:
-            self.cookies = {
-                key: value
-                for key, value in [e.split("=") for e in cookie_str.split(";")]
-            }
+            # {key: value for key, value in [e.split("=") for e in cookie_str.split(";")]}
+            self.cookies = dict(urllib.parse.parse_qsl(cookie_str, separator="; "))
             return True
         except AttributeError as e:
             return False

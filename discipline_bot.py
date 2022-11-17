@@ -16,7 +16,7 @@ from leet_simulator import get_submission_details, set_cookies as handle_set_coo
 from leetmodel import leetmodel
 from util import printException, duration_till_next_day
 
-DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "prod")
+DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
 SLEEP_INTERVAL_SECONDS = int(os.getenv("SLEEP_INTERVAL_SECONDS"))
 max_recent = 20
