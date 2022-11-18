@@ -12,7 +12,7 @@ from discord.ext import tasks
 from discord.utils import get
 from dotenv import load_dotenv
 
-from leet_simulator import get_submission_details, set_cookies as handle_set_cookies
+from leet_simulator import get_submission_details, set_cookies
 from leetmodel import leetmodel
 from util import printException, duration_till_next_day
 
@@ -160,8 +160,9 @@ class MyClient(discord.Client):
                                 f"{submission_detail['code']}" \
                                 f"```"
                     else:
-                        await guild.get_channel(int(os.getenv("MOD_CHANNEL"))).send("Cookie expired, please update "
-                                                                                    "cookie")
+                        await guild.get_channel(int(os.getenv("MOD_CHANNEL"))).send("@admin Cookie expired, please "
+                                                                                    "update cookie.")
+
 
                     embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
                                                  color=5025616)
@@ -229,7 +230,7 @@ async def admin_set_cookies(interaction: discord.Interaction, cookies: str):
     await interaction.response.send_message("Working")
     if not await verify_permissions(interaction):
         return
-    status = await handle_set_cookies(cookies)
+    status = await set_cookies(cookies)
     message = "Cookie updated " + ("" if status else "un") + "successfully."
     await interaction.response.send_message(message)
 
