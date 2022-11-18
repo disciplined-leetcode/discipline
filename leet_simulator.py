@@ -45,7 +45,7 @@ json_data = {"operationName": "submissionDetails",
 
 def get_submission_details(submission_id):
     json_data['variables'] = json.dumps({"submissionId": submission_id})
-    res = requests.post('https://leetcode.com/graphql', cookies=cookies, headers=headers, json=json_data).json()
+    res = requests.post('https://leetcode.com/graphql', cookies=cookie_model.cookies, headers=headers, json=json_data).json()
     lang = res['data']['submissionDetails']['lang']['name']
     code = res['data']['submissionDetails']['code'].removesuffix('\n')
     return {
