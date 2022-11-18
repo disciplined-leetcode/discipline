@@ -22,7 +22,10 @@ class leetmodel:
         payload = {"csrfmiddlewaretoken": self.tokens["csrf"], "login": un, "password": pw}
 
         resp2 = self.session.post(self.api["login"], headers=hd, data=payload)
-        self.tokens["session"] = resp2.cookies.get_dict()["LEETCODE_SESSION"]
+        # TODO fix the recaptcha error; potentially using
+        #  https://github.com/skygragon/leetcode-cli/blob/5245886992ceb64bfb322256b2bdc24184b36d76/lib/plugins/leetcode.js#L464
+        print(resp2)
+        # self.tokens["session"] = resp2.cookies.get_dict()["LEETCODE_SESSION"]
 
     def get_headers(self, referer=None):
         if referer == None:
@@ -30,7 +33,7 @@ class leetmodel:
 
         hd = {'User-Agent': 'Mozilla/5.0',
               "X-Requested-With": 'XMLHttpRequest', 'Referer': referer,
-              "Cookie": "LEETCODE_SESSION=${Helper.credit.session};csrftoken=${Helper.credit.csrfToken}"}
+              "Cookie": f"LEETCODE_SESSION=abcd;csrftoken={self.tokens['csrf']}; _ga=GA1.2.410099775.1668743041; _gid=GA1.2.1375712340.1668743041; _gat=1; gr_user_id=962887ae-3607-42c6-bbc3-838da57a4f05; 87b5a3c3f1a55520_gr_session_id=c5ad8b1e-7dd4-4d39-a92e-6a3eb186f13d; 87b5a3c3f1a55520_gr_session_id_c5ad8b1e-7dd4-4d39-a92e-6a3eb186f13d=true"}
 
         if "csrf" in self.tokens:
             hd["X-CSRFToken"] = self.tokens["csrf"]
