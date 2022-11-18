@@ -2,9 +2,18 @@ import json
 
 import requests
 
-from private import cookies
+from cookies_model import CookieModel
 
-__all__ = ['get_submission_details']
+cookie_model = CookieModel()
+# if file exists, read cookies from file
+try:
+    with open("cookies.txt", "r") as f:
+        cookie_model.set(f.read())
+except FileNotFoundError:
+    print("No cookies.txt file found, please set using /admin_set_cookies")
+
+
+__all__ = ["get_submission_details", "set_cookies"]
 
 headers = {
     'authority': 'leetcode.com',
@@ -36,7 +45,7 @@ json_data = {"operationName": "submissionDetails",
 
 def get_submission_details(submission_id):
     json_data['variables'] = json.dumps({"submissionId": submission_id})
-    res = requests.post('https://leetcode.com/graphql', cookies=cookies, headers=headers, json=json_data).json()
+    res = requests.post('https://leetcode.com/graphql', cookies=cookie_model.cookies, headers=headers, json=json_data).json()
     lang = res['data']['submissionDetails']['lang']['name']
     code = res['data']['submissionDetails']['code'].removesuffix('\n')
     return {
@@ -47,5 +56,11 @@ def get_submission_details(submission_id):
     }
 
 
-if __name__ == '__main__':
+def set_cookies(cookies):
+    status = cookie_model.set(cookies)
+    with open("cookies.txt", "w") as f:
+        f.write(cookies)
+    return status
+
+if __name__ == "__main__":
     print(get_submission_details(815504963))
