@@ -56,7 +56,7 @@ def get_submission_details(submission_id):
     }
 
 
-async def set_cookies(cookies):
+def set_cookies(cookies):
     status = cookie_model.set(cookies)
     with open("cookies.txt", "w") as f:
         f.write(cookies)

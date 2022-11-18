@@ -230,7 +230,7 @@ async def admin_set_cookies(interaction: discord.Interaction, cookies: str):
     if not await verify_permissions(interaction):
         return
     await interaction.response.send_message("Working")
-    status = await set_cookies(cookies)
+    status = set_cookies(cookies)
     message = "Cookie updated " + ("" if status else "un") + "successfully."
     await interaction.response.send_message(message)
 
