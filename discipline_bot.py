@@ -226,6 +226,7 @@ async def add_user(interaction: discord.Interaction, leetcode_username: str):
 
 @client.tree.command()
 async def admin_set_cookies(interaction: discord.Interaction, cookies: str):
+    await interaction.response.send_message("Working")
     if not await verify_permissions(interaction):
         return
     status = await handle_set_cookies(cookies)
