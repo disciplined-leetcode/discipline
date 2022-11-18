@@ -232,7 +232,7 @@ async def admin_set_cookies(interaction: discord.Interaction, cookies: str):
     await interaction.response.send_message("Working")
     status = set_cookies(cookies)
     message = "Cookie updated " + ("" if status else "un") + "successfully."
-    await interaction.response.send_message(message)
+    await interaction.followup.send(message)
 
 
 @client.tree.command()
