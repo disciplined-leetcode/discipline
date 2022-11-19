@@ -1,10 +1,12 @@
 # Installation
 `pipenv install`
+Install [git-crypt](https://github.com/AGWA/git-crypt/blob/master/INSTALL.md)
 
 # Run
 ```Bash
 pipenv shell
 # For local run
+git-crypt unlock <path-to-the-secret-key>
 python discipline_bot.py
 # For remote run
 nohup python discipline_bot.py > console.log 2>&1 &
