@@ -18,7 +18,8 @@ from util import printException, duration_till_next_day
 
 DISCIPLINE_MODE = os.getenv('DISCIPLINE_MODE', "dev")
 load_dotenv(f"{DISCIPLINE_MODE}.env")
-SLEEP_INTERVAL_SECONDS = int(os.getenv("SLEEP_INTERVAL_SECONDS"))
+API_DM_SLEEP_INTERVAL_SECONDS = int(os.getenv("API_DM_SLEEP_INTERVAL_SECONDS"))
+DM_SLEEP_INTERVAL_SECONDS = int(os.getenv("DM_SLEEP_INTERVAL_SECONDS"))
 max_recent = 20
 GUILD_ID = int(os.getenv("GUILD_ID"))
 submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
@@ -116,7 +117,7 @@ class MyClient(discord.Client):
                 leetcode_username = document["leetcode_username"]
                 discord_user = await client.fetch_user(discord_user_id)
                 user_data = leetcode_model.get_user_data(leetcode_username)
-                await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
+                await asyncio.sleep(API_DM_SLEEP_INTERVAL_SECONDS)
                 current_total = user_data['submitStats']['acSubmissionNum'][0]['submissions']
                 prev_total = document["ac_count_total_submissions"]
                 num_new_submissions = current_total - prev_total
@@ -126,7 +127,7 @@ class MyClient(discord.Client):
 
                 update_user(discord_user_id, user_data, leetcode_username)
                 recent_submissions = leetcode_model.get_recent_submissions(leetcode_username)
-                await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
+                await asyncio.sleep(API_DM_SLEEP_INTERVAL_SECONDS)
 
                 for i in range(min(max_recent, num_new_submissions)):
                     submission = recent_submissions[i]
@@ -144,7 +145,7 @@ class MyClient(discord.Client):
 
                     try:
                         submission_detail = get_submission_details(submission['id'])
-                        await asyncio.sleep(SLEEP_INTERVAL_SECONDS)
+                        await asyncio.sleep(API_DM_SLEEP_INTERVAL_SECONDS)
                     except Exception as e:
                         printException(e)
 
@@ -330,6 +331,7 @@ async def handle_kicking(days_before: int = 7):
     prospective_chat_channel = guild.get_channel(int(os.getenv("PROSPECTIVE_CHAT_CHANNEL_ID")))
     active_role = get(guild.roles, id=int(os.getenv("ACTIVE_ROLE_ID")))
 
+    members_to_warn = []
     for member in active_role.members:
         join_date_time = member.joined_at
 
@@ -337,14 +339,19 @@ async def handle_kicking(days_before: int = 7):
                 and member.id not in discord_users_with_submissions):
             continue
 
-        goal = "regain access to member channels"
-        await prospective_chat_channel.send(
-            f"{member.mention} You have not made any LeetCode submission in the last few days.\n"
-            f"To {goal}, please make a donation at "
-            f"<#{os.getenv('SUPPORT_CHANNEL_ID')}>")
+        members_to_warn.append(member)
 
-        warned.append(f"{member.name} ({member.id})")
+    warn_goal = "regain access to member channels"
+    for member in members_to_warn:
+        warn_message = f"{member.mention} You have not made any LeetCode submission in the last few days.\n"\
+                       f"To {warn_goal}, please make a donation at <#{os.getenv('SUPPORT_CHANNEL_ID')}>"
+        await prospective_chat_channel.send(warn_message)
         await member.remove_roles(active_role, reason="Lack of submissions")
+        warned.append(f"{member.name} ({member.id})")
+
+        await member.create_dm()
+        await member.dm_channel.send(warn_message)
+        await asyncio.sleep(DM_SLEEP_INTERVAL_SECONDS)
 
     print(f"Warned {len(warned)} members.\n{', '.join(warned)}")
     return warned
