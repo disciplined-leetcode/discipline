@@ -1,6 +1,5 @@
 *.env filter=git-crypt diff=git-crypt
 cookies.txt filter=git-crypt diff=git-crypt
-private.py filter=git-crypt diff=git-crypt
 
 example_dev.env !filter=git-crypt !diff=git-crypt
 

@@ -5,7 +5,7 @@ git clone https://github.com/disciplined-leetcode/discipline.git
 cd discipline/
 echo "alias v=vim" > ~/.bashrc
 # Paste/update special files
-v private.py
+v cookie.txt
 v prod.env
 sudo apt-get update
 sudo apt install python3-pip
