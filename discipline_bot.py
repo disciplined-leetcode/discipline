@@ -161,8 +161,12 @@ class MyClient(discord.Client):
                                 f"{submission_detail['code']}" \
                                 f"```"
                     else:
-                        await guild.get_channel(int(os.getenv("MOD_CHANNEL"))).send("@admin Cookie expired, please "
-                                                                                    "update cookie.")
+                        await guild.get_channel(int(os.getenv("MOD_CHANNEL"))) \
+                            .send(f"<@{int(os.getenv('MOD_ID'))}> Cookie expired, please update cookie.")
+                        
+                            
+                            
+                            
 
 
                     embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
