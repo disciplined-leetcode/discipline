@@ -48,6 +48,7 @@ def get_submission_details(submission_id):
     res = requests.post('https://leetcode.com/graphql', cookies=cookie_model.cookies, headers=headers, json=json_data).json()
     lang = res['data']['submissionDetails']['lang']['name']
     code = res['data']['submissionDetails']['code'].removesuffix('\n')
+    # TODO return headers to check for rate limiting information during 429's
     return {
         'lang': lang,
         'code': code,

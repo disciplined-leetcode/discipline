@@ -326,6 +326,7 @@ async def handle_kicking(days_before: int = 7):
     # facilitate user redemption.
     iterator = submission_feed_collection.find({"timestamp": {"$gte": str(cutoff.timestamp())}})
     leetcode_users_with_submissions = {document["leetcode_username"] for document in iterator}
+    # TODO Handle the case when the user is removed from user_collection
     discord_users_with_submissions = [user_collection.find_one(filter={"leetcode_username": leetcode_username},
                                                                projection={"discord_user_id": 1})['discord_user_id']
                                       for leetcode_username in leetcode_users_with_submissions]
