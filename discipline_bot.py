@@ -326,11 +326,10 @@ async def handle_kicking(days_before: int = 7):
     # facilitate user redemption.
     iterator = submission_feed_collection.find({"timestamp": {"$gte": str(cutoff.timestamp())}})
     leetcode_users_with_submissions = {document["leetcode_username"] for document in iterator}
-    # TODO Handle the case when the user is removed from user_collection
     discord_users_with_submissions = [user_collection.find_one(filter={"leetcode_username": leetcode_username},
-                                                               projection={"discord_user_id": 1})['discord_user_id']
+                                                               projection={"discord_user_id": 1})
                                       for leetcode_username in leetcode_users_with_submissions]
-
+    discord_user_ids_with_submissions = [user['discord_user_id'] for user in discord_users_with_submissions if user]
     warned = []
     guild = client.get_guild(GUILD_ID)
     prospective_chat_channel = guild.get_channel(int(os.getenv("PROSPECTIVE_CHAT_CHANNEL_ID")))
@@ -341,7 +340,7 @@ async def handle_kicking(days_before: int = 7):
         join_date_time = member.joined_at
 
         if not (join_date_time and join_date_time < cutoff and not member.bot
-                and member.id not in discord_users_with_submissions):
+                and member.id not in discord_user_ids_with_submissions):
             continue
 
         members_to_warn.append(member)

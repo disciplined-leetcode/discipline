@@ -24,7 +24,7 @@ class leetmodel:
         resp2 = self.session.post(self.api["login"], headers=hd, data=payload)
         # TODO fix the recaptcha error; potentially using
         #  https://github.com/skygragon/leetcode-cli/blob/5245886992ceb64bfb322256b2bdc24184b36d76/lib/plugins/leetcode.js#L464
-        print(resp2)
+        print("graphql Login response: ", resp2)
         # self.tokens["session"] = resp2.cookies.get_dict()["LEETCODE_SESSION"]
 
     def get_headers(self, referer=None):
