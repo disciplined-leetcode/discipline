@@ -88,14 +88,22 @@ class MyClient(discord.Client):
         sleep_duration = (duration_till_next_day() + datetime.timedelta(minutes=1)).seconds
         print(f"sleep - kicker_task: {sleep_duration}")
         await asyncio.sleep(sleep_duration)
-        await handle_kicking(3)
+
+        try:
+            await handle_kicking(3)
+        except Exception as e:
+            printException(e)
 
     @tasks.loop(hours=24)
     async def question_of_the_day_task(self):
         sleep_duration = (duration_till_next_day() + datetime.timedelta(minutes=2)).seconds
         print(f"sleep - question_of_the_day_task: {sleep_duration}")
         await asyncio.sleep(sleep_duration)
-        await send_question_of_the_day()
+
+        try:
+            await send_question_of_the_day()
+        except Exception as e:
+            printException(e)
 
     @tasks.loop(seconds=int(os.getenv("REFRESH_INTERVAL_SECONDS")))
     async def get_feed(self):
@@ -357,7 +365,10 @@ async def handle_kicking(days_before: int = 7):
         await member.dm_channel.send(warn_message)
         await asyncio.sleep(DM_SLEEP_INTERVAL_SECONDS)
 
-    print(f"Warned {len(warned)} members.\n{', '.join(warned)}")
+    public_message = f"Warned {len(warned)} member{'s' if len(warned) != -1 else ''}."
+    await prospective_chat_channel.send(public_message)
+    print(f"{public_message}\n{', '.join(warned)}")
+
     return warned
 
 
