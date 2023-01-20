@@ -365,7 +365,7 @@ async def handle_kicking(days_before: int = 7):
         await member.dm_channel.send(warn_message)
         await asyncio.sleep(DM_SLEEP_INTERVAL_SECONDS)
 
-    public_message = f"Warned {len(warned)} member{'s' if len(warned) != -1 else ''}."
+    public_message = f"Warned {len(warned)} member{'s' if len(warned) != 1 else ''}."
     await prospective_chat_channel.send(public_message)
     print(f"{public_message}\n{', '.join(warned)}")
 
