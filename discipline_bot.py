@@ -51,12 +51,15 @@ async def send_question_of_the_day():
     embed.description = f"@everyone Friendly reminder 🎗\n" \
                         f"You must complete one of them by the end of {question_of_the_day['date']} UTC⏱️.\n" \
                         f"Likely <t:{timestamp}:f> your time.\n\n" \
-                        f"The **senior** track question is {question_of_the_day['question']['frontendQuestionId']} " \
+                        f"Option 1\n" \
+                        f"{question_of_the_day['question']['frontendQuestionId']} " \
                         f"{question_of_the_day['question']['title']}: " \
                         f"https://leetcode.com{question_of_the_day['link']}\n\n" \
-                        f"The **junior** track question is here: " \
-                        f"https://docs.google.com/spreadsheets/d/1AROdK4Vvq6NYxK2oNFpCQLZfYPhphunJfQ7qCeE2CSA" \
-                        f"/edit?usp=sharing\n"
+                        f"Option 2 (handpicked)\n" \
+                        f"https://docs.google.com/spreadsheets/d/1kBGyRsSdbGDu7DzjQcC-UkZjZERdrP8-_QyVGXHSrB8/edit" \
+                        f"?usp=sharing\n\n" \
+                        f"Option 3 (handpicked)\n" \
+                        f"https://docs.qq.com/sheet/DWGFoRGVZRmxNaXFz?tab=BB08J2"
 
     await question_of_the_day_channel.send(embed=embed)
 
@@ -171,11 +174,6 @@ class MyClient(discord.Client):
                     else:
                         await guild.get_channel(int(os.getenv("MOD_CHANNEL"))) \
                             .send(f"<@{int(os.getenv('MOD_ID'))}> Cookie expired, please update cookie.")
-                        
-                            
-                            
-                            
-
 
                     embed: Embed = discord.Embed(title="Accepted", description=desc, timestamp=timestamp,
                                                  color=5025616)
@@ -355,7 +353,7 @@ async def handle_kicking(days_before: int = 7):
 
     warn_goal = "regain access to member channels"
     for member in members_to_warn:
-        warn_message = f"{member.mention} You have not made any LeetCode submission in the last few days.\n"\
+        warn_message = f"{member.mention} You have not made any LeetCode submission in the last few days.\n" \
                        f"To {warn_goal}, please make a donation at <#{os.getenv('SUPPORT_CHANNEL_ID')}>"
         await prospective_chat_channel.send(warn_message)
         await member.remove_roles(active_role, reason="Lack of submissions")
