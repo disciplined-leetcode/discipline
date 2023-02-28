@@ -55,7 +55,7 @@ async def send_question_of_the_day():
                         f"https://docs.google.com/spreadsheets/d/1kBGyRsSdbGDu7DzjQcC-UkZjZERdrP8-_QyVGXHSrB8/edit" \
                         f"?usp=sharing\n\n" \
                         f"Option 2 (handpicked)\n" \
-                        f"https://docs.qq.com/sheet/DWGFoRGVZRmxNaXFz?tab=BB08J2\n\n" \
+                        f"https://docs.qq.com/sheet/DWGFoRGVZRmxNaXFz\n\n" \
                         f"Option 3 (likely easiest)\n" \
                         f"{question_of_the_day['question']['frontendQuestionId']} " \
                         f"{question_of_the_day['question']['title']}: " \
