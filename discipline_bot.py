@@ -51,15 +51,15 @@ async def send_question_of_the_day():
     embed.description = f"@everyone Friendly reminder 🎗\n" \
                         f"You must complete one of them by the end of {question_of_the_day['date']} UTC⏱️.\n" \
                         f"Likely <t:{timestamp}:f> your time.\n\n" \
-                        f"Option 1\n" \
-                        f"{question_of_the_day['question']['frontendQuestionId']} " \
-                        f"{question_of_the_day['question']['title']}: " \
-                        f"https://leetcode.com{question_of_the_day['link']}\n\n" \
-                        f"Option 2 (handpicked)\n" \
+                        f"Option 1 (handpicked)\n" \
                         f"https://docs.google.com/spreadsheets/d/1kBGyRsSdbGDu7DzjQcC-UkZjZERdrP8-_QyVGXHSrB8/edit" \
                         f"?usp=sharing\n\n" \
-                        f"Option 3 (handpicked)\n" \
-                        f"https://docs.qq.com/sheet/DWGFoRGVZRmxNaXFz?tab=BB08J2"
+                        f"Option 2 (handpicked)\n" \
+                        f"https://docs.qq.com/sheet/DWGFoRGVZRmxNaXFz?tab=BB08J2\n\n" \
+                        f"Option 3 (likely easiest)\n" \
+                        f"{question_of_the_day['question']['frontendQuestionId']} " \
+                        f"{question_of_the_day['question']['title']}: " \
+                        f"https://leetcode.com{question_of_the_day['link']}"
 
     await question_of_the_day_channel.send(embed=embed)
 
