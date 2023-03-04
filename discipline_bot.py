@@ -53,7 +53,7 @@ async def send_question_of_the_day():
                         f"Likely <t:{timestamp}:f> your time.\n\n" \
                         f"Option 1 (handpicked)\n" \
                         f"https://docs.google.com/spreadsheets/d/19-QEeE1NrT9HTbNBJKZNx4yO5wkPE2YBqsKzREieEAM/edit" \
-                        f"?usp=sharing\n\n" \ 
+                        f"?usp=sharing\n\n" \
                         f"Option 2 (handpicked)\n" \
                         f"https://docs.qq.com/sheet/DWGFoRGVZRmxNaXFz\n\n" \
                         f"Option 3 (likely easiest)\n" \
