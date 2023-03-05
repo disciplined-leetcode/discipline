@@ -4,7 +4,6 @@ import datetime
 import os
 
 import discord
-import pandas as pd
 import pymongo
 import pytz
 from discord import app_commands, Embed, Member
@@ -26,10 +25,6 @@ submission_feed_channel_id = int(os.getenv("SUBMISSION_FEED_CHANNEL_ID"))
 question_of_the_day_channel_id = int(os.getenv("QUESTION_OF_THE_DAY_CHANNEL_ID"))
 MY_GUILD = discord.Object(id=GUILD_ID)
 leetcode_model = leetmodel(os.getenv("LEETCODE_ACCOUNT_NAME"), os.getenv("LEETCODE_ACCOUNT_PASSWORD"))
-leetcode_questions = pd.read_csv('./public_data/leetcode_questions.csv', header=0)
-leetcode_questions["link"] = "https://leetcode.com/problems/" + leetcode_questions["titleSlug"] + "/"
-leetcode_questions = leetcode_questions.set_index("titleSlug")
-title_slug_to_data = leetcode_questions.to_dict('index')
 
 client = pymongo.MongoClient(os.getenv("ATLAS_URI"))
 db = client.disciplined_leetcode_db
@@ -150,7 +145,6 @@ class MyClient(discord.Client):
                     submission["time"] = timestamp.strftime(os.getenv("DATETIME_FORMAT"))
                     submission["leetcode_username"] = leetcode_username
                     submission["discord_user_id"] = discord_user_id
-                    submission.update(title_slug_to_data[submission["titleSlug"]])
                     submission_feed_collection.insert_one(submission)
                     submission_detail = collections.defaultdict(lambda: '')
 
